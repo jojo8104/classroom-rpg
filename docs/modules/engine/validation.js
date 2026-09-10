@@ -60,6 +60,10 @@ export function validateScenario(scenario) {
         errors.push('Thème : matière inconnue.');
     if (lesson.topicId !== scenario.topic.id)
         errors.push('Leçon : thème inconnu.');
+    checkStat(lesson.complexity, 'Complexité');
+    checkStat(lesson.pressure, 'Pression');
+    if (!Number.isFinite(lesson.requiredProgress) || lesson.requiredProgress <= 0)
+        errors.push('Progression requise : valeur positive requise.');
     const conceptIds = uniqueIds(scenario.concepts, 'Concept');
     for (const id of lesson.conceptIds) {
         if (!conceptIds.has(id))

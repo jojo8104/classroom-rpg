@@ -3,12 +3,19 @@ import { createPrototype } from '../src/data/prototype.js';
 import { createActionRules } from '../src/data/rules.js';
 import { ActionQueue, resolveActionRound } from '../src/engine/actions.js';
 import { SeededRandom } from '../src/engine/random.js';
+import { createLessonStates, moraleMultiplier, pressureDamage, workGain } from '../src/engine/combat.js';
 
 function fixture() {
-  const students = createPrototype().students;
-  return { students, states: students.map(student => ({ studentId: student.id, lessonUnderstanding: 0, concentrationBonus: 0 })), rules: createActionRules() };
+  const { students, lesson } = createPrototype();
+  const rules = createActionRules();
+  rules.criticalChance = 0;
+  rules.workVariation = 0;
+  rules.supportChanceByArchetype = { offensive: 0, defensive: 0, support: 0 };
+  return { students, lesson, states: createLessonStates(students, lesson), rules };
 }
-
+function run(f: ReturnType<typeof fixture>, seed = 1) {
+  return resolveActionRound(f.students, f.states, new SeededRandom(seed), f.rules, f.lesson, f.lesson.chapters[0]!.id);
+}
 describe('Aléatoire à seed', () => {
   it('reproduit une séquence connue de Mulberry32', () => {
     const random = new SeededRandom(1);
@@ -60,76 +67,118 @@ describe('File explicite', () => {
   });
 });
 
-describe('Résolution des actions', () => {
-  it('reproduit les états et tous les événements sans modifier les entrées', () => {
+
+describe('Combat 1.1', () => {
+  it('applique le moral de ×0,1 à ×1,9', () => {
+    expect(moraleMultiplier(0)).toBeCloseTo(0.1);
+    expect(moraleMultiplier(50)).toBeCloseTo(1);
+    expect(moraleMultiplier(100)).toBeCloseTo(1.9);
+    const f = fixture();
+    const student = f.students[0]!;
+    expect(workGain(student, 100, f.lesson, f.rules, 0.5)).toBeGreaterThan(workGain(student, 0, f.lesson, f.rules, 0.5));
+    expect(pressureDamage(student, 100, f.lesson, f.rules)).toBeLessThan(pressureDamage(student, 0, f.lesson, f.rules));
+  });
+  it('la complexité défend, la pression attaque et la discipline protège', () => {
+    const f = fixture();
+    const student = f.students[0]!;
+    expect(workGain(student, 50, { ...f.lesson, complexity: 100 }, f.rules, .5)).toBeLessThan(workGain(student, 50, { ...f.lesson, complexity: 0 }, f.rules, .5));
+    expect(pressureDamage(student, 50, { ...f.lesson, pressure: 0 }, f.rules)).toBe(0);
+    expect(pressureDamage({ ...student, discipline: 100 }, 50, f.lesson, f.rules)).toBeLessThan(pressureDamage({ ...student, discipline: 0 }, 50, f.lesson, f.rules));
+  });
+  it('WORK progresse puis subit la riposte, sans mutation des entrées', () => {
     const f = fixture();
     const before = structuredClone(f);
-    const run = (seed: number) => resolveActionRound(f.students, f.states, new SeededRandom(seed), f.rules);
-    expect(run(12345)).toEqual(run(12345));
-    expect(run(12345)).not.toEqual(run(67890));
+    const result = run(f);
+    expect(result.students[0]!.lessonUnderstanding).toBeGreaterThan(0);
+    expect(result.students[0]!.concentration).toBeLessThan(f.states[0]!.concentration);
+    expect(result.events.findIndex(e => e.type === 'UNDERSTANDING_CHANGED')).toBeLessThan(result.events.findIndex(e => e.type === 'LESSON_RETALIATED'));
     expect(f).toEqual(before);
-    const actions = run(12345).events.filter(event => event.type === 'STUDENT_ACTION').filter(event => !event.extra);
-    expect(actions.map(event => event.actorId)).toEqual(f.students.map(student => student.id));
+    expect(run(f)).toEqual(result);
   });
-  it('WORK progresse et reste borné à 100, avec un delta réel dans le journal', () => {
+  it('une concentration faible ne réduit pas le gain tant que les HP sont positifs', () => {
     const f = fixture();
-    f.rules.supportChanceByArchetype = { offensive: 0, defensive: 0, support: 0 };
-    f.states[0]!.lessonUnderstanding = 99;
-    const result = resolveActionRound(f.students, f.states, new SeededRandom(1), f.rules);
-    expect(result.students[0]!.lessonUnderstanding).toBe(100);
-    expect(result.students.every(student => student.lessonUnderstanding > 0 && student.lessonUnderstanding <= 100)).toBe(true);
-    expect(result.events).toContainEqual({ type: 'UNDERSTANDING_CHANGED', studentId: f.students[0]!.id, before: 99, after: 100, amount: 1 });
+    const high = run(f).students[0]!.lessonUnderstanding;
+    f.states[0]!.concentration = 1;
+    expect(run(f).students[0]!.lessonUnderstanding).toBe(high);
   });
-  it('SUPPORT cible autrui, expire en fin de round et ajoute WORK après les actions principales', () => {
+  it('à zéro : ni travail ni riposte, une étape manquée et récupération autonome', () => {
+    const f = fixture();
+    f.states[0]!.concentration = 0;
+    const result = run(f);
+    const state = result.students[0]!;
+    expect(state.lessonUnderstanding).toBe(0);
+    expect(state.chapters[0]!.missedRounds).toBe(1);
+    expect(state.concentration).toBe(f.rules.recovery);
+    expect(state.morale).toBe(f.states[0]!.morale);
+    expect(result.events.filter(e => e.type === 'STUDENT_ACTION' && e.actorId === state.studentId)).toEqual([
+      { type: 'STUDENT_ACTION', actorId: state.studentId, targetId: state.studentId, actionId: 'RECOVER', extra: false },
+    ]);
+    expect(result.events).toContainEqual({ type: 'STUDENT_RESUMED', studentId: state.studentId });
+    f.states = result.students;
+    expect(run(f).students[0]!.lessonUnderstanding).toBeGreaterThan(0);
+  });
+  it('perd du moral une seule fois à la transition vers zéro, sans descendre sous zéro', () => {
+    const f = fixture();
+    f.states[0]!.concentration = 1; f.states[0]!.morale = 3;
+    const result = run(f);
+    expect(result.students[0]!.morale).toBe(0);
+    expect(result.events.filter(e => e.type === 'STUDENT_DROPPED_OUT' && e.studentId === f.students[0]!.id)).toHaveLength(1);
+    f.states = result.students;
+    const recovery = run(f);
+    expect(recovery.events.filter(e => e.type === 'MORALE_CHANGED' && e.studentId === f.students[0]!.id)).toHaveLength(0);
+  });
+  it('un critique augmente le gain et évite la riposte', () => {
+    const f = fixture();
+    const normal = run(f);
+    f.rules.criticalChance = 1;
+    const critical = run(f);
+    expect(critical.students[0]!.lessonUnderstanding).toBeGreaterThan(normal.students[0]!.lessonUnderstanding);
+    expect(critical.students[0]!.concentration).toBe(f.states[0]!.concentration);
+    expect(critical.events.filter(e => e.type === 'LESSON_RETALIATED')).toHaveLength(0);
+  });
+  it('compléter un chapitre évite la riposte et ne remplit pas le chapitre suivant', () => {
+    const f = fixture();
+    f.rules.workScale = 100;
+    const result = run(f);
+    expect(result.students[0]!.lessonUnderstanding).toBe(50);
+    expect(result.students[0]!.chapters[1]!.progress).toBe(0);
+    expect(result.events.filter(e => e.type === 'LESSON_RETALIATED')).toHaveLength(0);
+    f.states = result.students;
+    expect(run(f).students[0]!.lessonUnderstanding).toBe(50);
+  });
+  it('SUPPORT restaure les HP, sans dépasser 100, et ajoute WORK en fin de file', () => {
     const f = fixture();
     f.rules.supportChanceByArchetype = { offensive: 1, defensive: 1, support: 1 };
-    f.rules.extraActionChance = 1;
-    const result = resolveActionRound(f.students, f.states, new SeededRandom(1), f.rules);
-    const actions = result.events.filter(event => event.type === 'STUDENT_ACTION');
-    expect(actions.slice(0, 9).every(event => event.actionId === 'SUPPORT' && event.targetId !== event.actorId && f.students.some(s => s.id === event.targetId))).toBe(true);
+    f.rules.extraActionChance = 1; f.rules.criticalChance = 1;
+    f.states.forEach(s => s.concentration = 99);
+    const result = run(f);
+    const actions = result.events.filter(e => e.type === 'STUDENT_ACTION');
+    expect(actions.slice(0,9).every(e => e.actionId === 'SUPPORT' && e.actorId !== e.targetId)).toBe(true);
     expect(actions.slice(9).length).toBeGreaterThan(0);
-    expect(actions.slice(9).every(event => event.extra && event.actionId === 'WORK')).toBe(true);
-    expect(result.events.some(event => event.type === 'EXTRA_ACTION_CREATED')).toBe(true);
-    expect(result.students.every(student => student.concentrationBonus === 0)).toBe(true);
+    expect(actions.slice(9).every(e => e.actionId === 'WORK' && e.extra)).toBe(true);
+    expect(result.students.every(s => s.concentration <= 100)).toBe(true);
+    expect(result.events.some(e => e.type === 'EXTRA_ACTION_CREATED')).toBe(true);
+    expect(result.events.filter(e => e.type === 'EFFECT_APPLIED').every(e => e.amount <= 1)).toBe(true);
   });
-  it('le bonus de SUPPORT améliore le travail supplémentaire de sa cible', () => {
+  it('un élève au repos ne reçoit pas d’action bonus dans le même round', () => {
     const f = fixture();
+    f.states[0]!.concentration = 0;
     f.rules.supportChanceByArchetype = { offensive: 1, defensive: 1, support: 1 };
     f.rules.extraActionChance = 1;
-    f.rules.concentrationFactor = 1;
-    f.rules.workVariation = 0;
-    const run = () => resolveActionRound(f.students.slice(0, 2), f.states.slice(0, 2), new SeededRandom(1), f.rules);
-    f.rules.supportBonus = 0;
-    const without = run();
-    f.rules.supportBonus = 10;
-    const withBonus = run();
-    expect(withBonus.students[0]!.lessonUnderstanding).toBeGreaterThan(without.students[0]!.lessonUnderstanding);
+    const result = run(f);
+    expect(result.events.filter(e => e.type === 'STUDENT_ACTION' && e.actorId === f.students[0]!.id)).toHaveLength(1);
   });
-  it('journalise les refus du budget sans supprimer les actions principales', () => {
+  it('journalise les refus du budget et garde une action principale par élève', () => {
     const f = fixture();
     f.rules.supportChanceByArchetype = { offensive: 1, defensive: 1, support: 1 };
-    f.rules.extraActionChance = 1;
-    f.rules.maxActionsPerRound = 9;
-    const result = resolveActionRound(f.students, f.states, new SeededRandom(1), f.rules);
-    expect(result.events.filter(event => event.type === 'STUDENT_ACTION')).toHaveLength(9);
-    expect(result.events.filter(event => event.type === 'ACTION_LIMIT_REACHED')).toHaveLength(9);
+    f.rules.extraActionChance = 1; f.rules.maxActionsPerRound = 9;
+    expect(run(f).events.filter(e => e.type === 'STUDENT_ACTION')).toHaveLength(9);
+    expect(run(f).events.filter(e => e.type === 'ACTION_LIMIT_REACHED')).toHaveLength(9);
   });
-  it('un élève isolé travaille même si son archétype privilégie le soutien', () => {
+  it('rejette les états, paramètres et références de chapitre invalides', () => {
     const f = fixture();
-    f.rules.supportChanceByArchetype.offensive = 1;
-    const result = resolveActionRound(f.students.slice(0, 1), f.states.slice(0, 1), new SeededRandom(1), f.rules);
-    expect(result.events[0]).toMatchObject({ type: 'STUDENT_ACTION', actionId: 'WORK' });
-  });
-  it('rejette un budget insuffisant, des états incohérents et des probabilités invalides', () => {
-    const f = fixture();
-    const run = () => resolveActionRound(f.students, f.states, new SeededRandom(1), f.rules);
-    f.rules.maxActionsPerRound = 8;
-    expect(run).toThrow('budget');
-    f.rules.maxActionsPerRound = 36;
-    f.rules.extraActionChance = NaN;
-    expect(run).toThrow('Probabilité');
-    f.rules.extraActionChance = 0;
-    f.states.pop();
-    expect(run).toThrow('correspondre');
+    f.rules.recovery = 0; expect(() => run(f)).toThrow();
+    f.rules.recovery = 30; f.states[0]!.chapters[0]!.progress = 999; expect(() => run(f)).toThrow();
+    f.states = createLessonStates(f.students,f.lesson); f.states.pop(); expect(() => run(f)).toThrow('correspondre');
   });
 });

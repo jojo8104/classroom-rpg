@@ -1641,3 +1641,21 @@ La mission actuelle reste volontairement beaucoup plus petite :
 La qualité de cette fondation est plus importante que la quantité de fonctionnalités produites.
 
  pose moi des questions si et seulement si il y a des précisions à apporter pour un meilleur résultat à chaque etape.
+---
+
+# Extension Roadmap 1.1 — Combat et décrochage
+
+Implémentée après validation de la Roadmap 1 initiale.
+
+- Leçon : complexité, pression et progression requise individuelle.
+- Intelligence × moral contre complexité ; riposte contre discipline × moral.
+- Moral : multiplicateur de 0,1 à 1,9.
+- Concentration = HP ; aucun apprentissage à zéro, perte de moral au décrochage.
+- Repos autonome, reprise, soutien restaurant les HP.
+- Progression réservée par chapitre ; lacunes conservées sans perte des acquis.
+- Résultats par chapitre et moral conservé pour une prochaine séance.
+- Événements, journal, interface HP/moral, tests et étude multi-seeds.
+
+Les décisions et formules sont détaillées dans README.md et remplacent les anciennes
+formules WORK/SUPPORT. Les comportements hors leçon, affinités, softskills et concepts
+validés individuellement restent hors de cette extension.

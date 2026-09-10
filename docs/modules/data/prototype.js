@@ -24,6 +24,7 @@ export function createPrototype() {
         subject: { id: 'mathematics', name: 'Mathématiques' },
         topic: { id: 'fractions', subjectId: 'mathematics', name: 'Fractions' },
         lesson: {
+            complexity: 50, pressure: 70, requiredProgress: 100,
             id: 'introduction-to-fractions', topicId: 'fractions',
             name: 'Introduction aux fractions',
             chapters: [

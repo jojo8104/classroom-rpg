@@ -1,4 +1,5 @@
 import { statBounds } from '../data/rules.js';
+import { chapterCapacity, pressureDamage, roundValue, workGain } from './combat.js';
 // Une instance par round. Le budget compte toutes les actions acceptées, même déjà sorties.
 export class ActionQueue {
     pending = [];
@@ -37,75 +38,124 @@ export function validateActionRules(rules, studentCount) {
         if (!Number.isSafeInteger(value) || value < 0)
             throw new Error('Limite de file invalide.');
     }
-    for (const value of [rules.workBase, rules.intelligenceFactor, rules.concentrationFactor,
-        rules.workVariation, rules.supportBonus]) {
-        if (!Number.isFinite(value) || value < 0)
+    for (const value of [rules.workScale, rules.pressureScale, rules.supportBonus, rules.dropoutMoraleLoss]) {
+        if (!Number.isFinite(value) || value < 0 || value > 100)
             throw new Error('Paramètre d’effet invalide.');
     }
-    for (const chance of [rules.extraActionChance, ...Object.values(rules.supportChanceByArchetype)]) {
+    if (!Number.isFinite(rules.defenseReference) || rules.defenseReference <= 0 ||
+        !Number.isFinite(rules.recovery) || rules.recovery <= 0 || rules.recovery > 100 ||
+        !Number.isFinite(rules.criticalMultiplier) || rules.criticalMultiplier < 1 || rules.criticalMultiplier > 10) {
+        throw new Error('Paramètre de combat invalide.');
+    }
+    for (const chance of [rules.extraActionChance, rules.criticalChance, rules.workVariation, ...Object.values(rules.supportChanceByArchetype)]) {
         if (!Number.isFinite(chance) || chance < 0 || chance > 1)
             throw new Error('Probabilité invalide.');
     }
     if (rules.maxActionsPerRound < studentCount)
         throw new Error('Le budget doit permettre toutes les actions principales.');
 }
-// Résout seulement les actions d'un round, indépendamment des transitions de leçon.
-// L'ordre des élèves est fourni par l'appelant ; les entrées ne sont jamais modifiées.
-export function resolveActionRound(students, initialStates, random, rules) {
+// Les états sont copiés en profondeur : les acquis des chapitres passés sont conservés.
+export function resolveActionRound(students, initialStates, random, rules, lesson, chapterId) {
     validateActionRules(rules, students.length);
-    const queue = new ActionQueue({
-        maxActionsPerRound: rules.maxActionsPerRound,
-        maxExtraActionsPerStudent: rules.maxExtraActionsPerStudent,
-        maxChainDepth: rules.maxChainDepth,
-    });
+    if (!lesson.chapters.some(chapter => chapter.id === chapterId))
+        throw new Error('Chapitre inconnu.');
+    if (!Number.isFinite(lesson.requiredProgress) || lesson.requiredProgress <= 0 ||
+        !Number.isFinite(lesson.complexity) || lesson.complexity < 0 || lesson.complexity > 100 ||
+        !Number.isFinite(lesson.pressure) || lesson.pressure < 0 || lesson.pressure > 100)
+        throw new Error('Leçon invalide.');
+    const queue = new ActionQueue(rules);
     const byId = new Map(students.map(student => [student.id, student]));
-    const states = new Map(initialStates.map(state => [state.studentId, { ...state }]));
+    const states = new Map(initialStates.map(state => [state.studentId, structuredClone(state)]));
     if (byId.size !== students.length || states.size !== initialStates.length || states.size !== byId.size) {
         throw new Error('Les élèves et leurs états doivent correspondre sans doublons.');
     }
+    const capacity = chapterCapacity(lesson);
     for (const student of students) {
         const state = states.get(student.id);
-        if (!state || !Number.isFinite(state.lessonUnderstanding) || state.lessonUnderstanding < 0 || state.lessonUnderstanding > 100 ||
-            !Number.isFinite(state.concentrationBonus) || state.concentrationBonus < 0)
+        if (!state)
             throw new Error('État de séance invalide.');
-        for (const value of [student.intelligence, student.concentration]) {
+        for (const value of [state.lessonUnderstanding, state.concentration, state.morale, student.intelligence, student.discipline]) {
             if (!Number.isFinite(value) || value < statBounds.min || value > statBounds.max)
                 throw new Error('Statistique invalide.');
         }
+        if (state.chapters.length !== lesson.chapters.length ||
+            new Set(state.chapters.map(c => c.chapterId)).size !== state.chapters.length ||
+            state.chapters.some(c => !lesson.chapters.some(d => d.id === c.chapterId) ||
+                !Number.isFinite(c.progress) || c.progress < 0 || c.progress > capacity ||
+                !Number.isSafeInteger(c.missedRounds) || c.missedRounds < 0))
+            throw new Error('Progression de chapitre invalide.');
+        const understanding = roundValue(100 * state.chapters.reduce((sum, c) => sum + c.progress, 0) / lesson.requiredProgress);
+        if (understanding !== state.lessonUnderstanding)
+            throw new Error('Compréhension incohérente avec les chapitres.');
         if (!Object.hasOwn(rules.supportChanceByArchetype, student.archetypeId))
             throw new Error('Règle d’archétype manquante.');
     }
     const events = [];
+    function changeConcentration(state, value, reason) {
+        const before = state.concentration;
+        state.concentration = roundValue(Math.max(0, Math.min(100, value)));
+        events.push({ type: 'CONCENTRATION_CHANGED', studentId: state.studentId, before, after: state.concentration, reason });
+        if (before > 0 && state.concentration === 0) {
+            const moraleBefore = state.morale;
+            state.morale = roundValue(Math.max(0, state.morale - rules.dropoutMoraleLoss));
+            events.push({ type: 'STUDENT_DROPPED_OUT', studentId: state.studentId });
+            events.push({ type: 'MORALE_CHANGED', studentId: state.studentId, before: moraleBefore, after: state.morale });
+        }
+        else if (before === 0 && state.concentration > 0) {
+            events.push({ type: 'STUDENT_RESUMED', studentId: state.studentId });
+        }
+    }
     for (const student of students) {
-        const supportChance = rules.supportChanceByArchetype[student.archetypeId];
-        const kind = random.next() < supportChance && students.length > 1 ? 'SUPPORT' : 'WORK';
+        const kind = random.next() < rules.supportChanceByArchetype[student.archetypeId] && students.length > 1 ? 'SUPPORT' : 'WORK';
         queue.enqueue({ actorId: student.id, kind, depth: 0 });
     }
+    // Un élève qui se repose ne gagne pas une nouvelle action d'apprentissage dans ce round.
+    const resting = new Set();
     let action;
     while ((action = queue.dequeue()) !== undefined) {
         const student = byId.get(action.actorId);
         const state = states.get(student.id);
+        const chapter = state.chapters.find(c => c.chapterId === chapterId);
+        if (action.depth > 0 && (state.concentration === 0 || resting.has(student.id)))
+            continue;
+        if (state.concentration === 0) {
+            resting.add(student.id);
+            chapter.missedRounds++;
+            events.push({ type: 'STUDENT_ACTION', actorId: student.id, actionId: 'RECOVER', targetId: student.id, extra: false });
+            events.push({ type: 'CHAPTER_PROGRESS_CHANGED', studentId: student.id, ...chapter });
+            changeConcentration(state, rules.recovery, 'recovery');
+            continue;
+        }
         if (action.kind === 'WORK') {
             events.push({ type: 'STUDENT_ACTION', actorId: student.id, actionId: 'WORK', targetId: student.id, extra: action.depth > 0 });
-            const concentration = Math.min(statBounds.max, student.concentration + state.concentrationBonus);
-            const gain = Math.max(0, Math.round(rules.workBase + student.intelligence * rules.intelligenceFactor +
-                concentration * rules.concentrationFactor + (random.next() * 2 - 1) * rules.workVariation));
+            if (chapter.progress >= capacity)
+                continue;
+            const critical = random.next() < rules.criticalChance;
+            const gain = workGain(student, state.morale, lesson, rules, random.next()) * (critical ? rules.criticalMultiplier : 1);
+            if (critical)
+                events.push({ type: 'CRITICAL_HIT', studentId: student.id });
             const before = state.lessonUnderstanding;
-            state.lessonUnderstanding = Math.min(100, before + gain);
-            events.push({ type: 'UNDERSTANDING_CHANGED', studentId: student.id, before,
-                after: state.lessonUnderstanding, amount: state.lessonUnderstanding - before });
+            chapter.progress = Math.min(capacity, roundValue(chapter.progress + gain));
+            state.lessonUnderstanding = roundValue(Math.min(100, 100 * state.chapters.reduce((sum, c) => sum + c.progress, 0) / lesson.requiredProgress));
+            events.push({ type: 'CHAPTER_PROGRESS_CHANGED', studentId: student.id, ...chapter });
+            events.push({ type: 'UNDERSTANDING_CHANGED', studentId: student.id, before, after: state.lessonUnderstanding, amount: roundValue(state.lessonUnderstanding - before) });
+            // Un critique ou la complétion du chapitre évite sa riposte.
+            if (!critical && chapter.progress < capacity) {
+                const damage = Math.min(state.concentration, pressureDamage(student, state.morale, lesson, rules));
+                events.push({ type: 'LESSON_RETALIATED', studentId: student.id, damage });
+                changeConcentration(state, state.concentration - damage, 'pressure');
+            }
         }
         else {
             const candidates = students.filter(candidate => candidate.id !== student.id);
             const target = candidates[random.integer(candidates.length)];
             const targetState = states.get(target.id);
             events.push({ type: 'STUDENT_ACTION', actorId: student.id, actionId: 'SUPPORT', targetId: target.id, extra: action.depth > 0 });
-            const before = Math.min(statBounds.max, target.concentration + targetState.concentrationBonus);
-            const after = Math.min(statBounds.max, before + rules.supportBonus);
-            targetState.concentrationBonus = after - target.concentration;
+            const before = targetState.concentration;
+            changeConcentration(targetState, before + rules.supportBonus, 'support');
             events.push({ type: 'EFFECT_APPLIED', sourceId: student.id, targetId: target.id,
-                effectId: 'concentration_bonus', before, after, amount: after - before });
-            if (random.next() < rules.extraActionChance) {
+                effectId: 'concentration_bonus', before, after: targetState.concentration, amount: roundValue(targetState.concentration - before) });
+            if (random.next() < rules.extraActionChance && targetState.concentration > 0 && !resting.has(target.id)) {
                 const depth = action.depth + 1;
                 const reason = queue.enqueue({ actorId: target.id, kind: 'WORK', depth });
                 if (reason)
@@ -115,6 +165,5 @@ export function resolveActionRound(students, initialStates, random, rules) {
             }
         }
     }
-    // Le soutien est valable jusqu'à la fin de ce round seulement.
-    return { students: students.map(student => ({ ...states.get(student.id), concentrationBonus: 0 })), events };
+    return { students: students.map(student => states.get(student.id)), events };
 }

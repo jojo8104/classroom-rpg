@@ -2,6 +2,7 @@ import { createActionRules } from '../data/rules.js';
 import { resolveActionRound, validateActionRules } from './actions.js';
 import { SeededRandom } from './random.js';
 import { validateScenario } from './validation.js';
+import { createLessonStates } from './combat.js';
 export class Simulation {
     scenario;
     rules;
@@ -27,9 +28,7 @@ export class Simulation {
             const right = seats.get(b.seatId);
             return left.row - right.row || left.column - right.column;
         });
-        this.students = this.scenario.students.map(student => ({
-            studentId: student.id, lessonUnderstanding: 0, concentrationBonus: 0,
-        }));
+        this.students = createLessonStates(this.scenario.students, this.scenario.lesson);
         validateActionRules(this.rules, this.students.length);
         for (const student of this.scenario.students) {
             if (!Object.hasOwn(this.rules.supportChanceByArchetype, student.archetypeId)) {
@@ -58,7 +57,7 @@ export class Simulation {
         this.round++;
         this.roundInChapter++;
         this.emit({ type: 'ROUND_STARTED' });
-        const result = resolveActionRound(this.scenario.students, this.students, this.random, this.rules);
+        const result = resolveActionRound(this.scenario.students, this.students, this.random, this.rules, this.scenario.lesson, this.scenario.lesson.chapters[this.chapterIndex].id);
         this.students = result.students;
         for (const event of result.events)
             this.emit(event);
@@ -91,11 +90,15 @@ export class Simulation {
     }
     individualResults() {
         return this.students.map(student => ({ studentId: student.studentId,
-            lessonId: this.scenario.lesson.id, understanding: student.lessonUnderstanding }));
+            lessonId: this.scenario.lesson.id, understanding: student.lessonUnderstanding,
+            chapters: structuredClone(student.chapters), concentration: student.concentration, morale: student.morale }));
     }
     getResult() {
         this.requireState('LESSON_FINISHED');
-        return { seed: this.seed, results: this.individualResults(), events: this.events };
+        // Nouvelle séance : concentration restaurée, moral conservé. L'historique reste dans results.
+        const nextLessonStudents = this.scenario.students.map(student => ({ ...student, concentration: 100,
+            morale: this.students.find(state => state.studentId === student.id).morale }));
+        return { seed: this.seed, results: this.individualResults(), events: this.events, nextLessonStudents };
     }
     runToCompletion() {
         while (this.phase !== 'LESSON_FINISHED') {

@@ -58,6 +58,9 @@ export interface LessonChapter {
 }
 
 export interface Lesson {
+  complexity: number;
+  pressure: number;
+  requiredProgress: number;
   id: string;
   topicId: string;
   name: string;
@@ -68,10 +71,21 @@ export interface Lesson {
 export interface StudentLessonState {
   studentId: string;
   lessonUnderstanding: number;
-  concentrationBonus: number;
+  concentration: number;
+  morale: number;
+  chapters: ChapterProgress[];
+}
+
+export interface ChapterProgress {
+  chapterId: string;
+  progress: number;
+  missedRounds: number;
 }
 
 export interface LessonResult {
+  chapters: ChapterProgress[];
+  concentration: number;
+  morale: number;
   studentId: string;
   lessonId: string;
   understanding: number;

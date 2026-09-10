@@ -5,6 +5,46 @@ import { Simulation } from '../src/engine/simulation.js';
 import { formatJournal } from '../src/cli/formatJournal.js';
 
 describe('Leçon complète', () => {
+  it('conserve une lacune du premier chapitre après reprise dans le second', () => {
+    const scenario = createPrototype();
+    scenario.students = scenario.students.slice(0, 1);
+    scenario.students[0]!.concentration = 0;
+    scenario.lesson.chapters[0]!.roundCount = 1;
+    const rules = createActionRules(); rules.workScale = 100; rules.criticalChance = 0;
+    const result = new Simulation(scenario, 1, rules).runToCompletion();
+    expect(result.results[0]!.chapters[0]).toMatchObject({ progress: 0, missedRounds: 1 });
+    expect(result.results[0]!.chapters[1]!.progress).toBe(50);
+    expect(result.results[0]!.understanding).toBe(50);
+  });
+
+  it('prépare une nouvelle leçon avec des HP restaurés et le moral conservé', () => {
+    const scenario = createPrototype();
+    scenario.students = scenario.students.slice(0, 1);
+    scenario.students[0]!.concentration = 1;
+    const rules = createActionRules(); rules.criticalChance = 0;
+    const result = new Simulation(scenario, 1, rules).runToCompletion();
+    expect(result.nextLessonStudents[0]!.concentration).toBe(100);
+    expect(result.nextLessonStudents[0]!.morale).toBeLessThan(scenario.students[0]!.morale);
+    expect(result.nextLessonStudents[0]!.morale).toBe(result.results[0]!.morale);
+    const next = createPrototype(); next.lesson.id = 'another-lesson'; next.students = result.nextLessonStudents;
+    const simulation = new Simulation(next, 1);
+    expect(simulation.studentStates[0]!.chapters.every(c => c.progress === 0 && c.missedRounds === 0)).toBe(true);
+    expect(simulation.studentStates[0]!.concentration).toBe(100);
+    expect(simulation.resolveRound().some(e => e.type === 'STUDENT_ACTION' && e.actionId === 'WORK')).toBe(true);
+  });
+
+  it('reste bornée et déterministe sur cent seeds', () => {
+    for (let seed = 0; seed < 100; seed++) {
+      const result = new Simulation(createPrototype(), seed).runToCompletion();
+      expect(result).toEqual(new Simulation(createPrototype(), seed).runToCompletion());
+      for (const student of result.results) {
+        expect(student.understanding >= 0 && student.understanding <= 100).toBe(true);
+        expect(student.concentration >= 0 && student.concentration <= 100).toBe(true);
+        expect(student.morale >= 0 && student.morale <= 100).toBe(true);
+        expect(student.chapters.every(c => c.progress >= 0 && c.progress <= 50)).toBe(true);
+      }
+    }
+  }, 30000);
   it('enchaîne six rounds, deux chapitres et six phases du professeur', () => {
     const result = new Simulation(createPrototype(), 12345).runToCompletion();
     expect(result.results).toHaveLength(9);
@@ -72,7 +112,7 @@ describe('Leçon complète', () => {
     const rules = createActionRules();
     const simulation = new Simulation(scenario, 12345, rules);
     scenario.students[0]!.intelligence = 0;
-    rules.workBase = 500;
+    rules.workScale = 100;
     const batch = simulation.resolveRound();
     const last = batch.at(-1)!;
     if (last.type === 'ROUND_ENDED') last.students[0]!.lessonUnderstanding = 999;
@@ -106,3 +146,4 @@ describe('Leçon complète', () => {
     for (const id of scenario.lesson.conceptIds) expect(journal).toContain(`- ${id}`);
   });
 });
+
