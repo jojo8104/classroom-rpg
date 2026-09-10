@@ -32,6 +32,9 @@ for (const student of scenario.students) {
   button.id = student.id; button.className = `seat ${student.archetypeId}`;
   button.style.gridRow = String(seat.row + 1); button.style.gridColumn = String(seat.column + 1);
   button.innerHTML = `<span class="seat-top"><span class="avatar">${student.name.slice(0,1)}</span><strong>${student.name}</strong></span><span class="score"><b>0 %</b><small>compris</small></span><progress max="100" value="0" aria-label="Compréhension de ${student.name}"></progress>`;
+  const feedback = document.createElement('span');
+  feedback.className = 'seat-feedback'; feedback.setAttribute('aria-hidden', 'true');
+  button.append(feedback);
   button.addEventListener('click', () => { selected = student.id; renderStudents(); });
   el('seats').append(button);
 }
@@ -56,25 +59,49 @@ function syncControls() {
     el('status').textContent = 'Les élèves sont installés.'; advance.textContent = 'Commencer la leçon →';
   }
 }
+function clearActionFeedback() {
+  document.querySelectorAll('.seat').forEach(seat => {
+    seat.classList.remove('active', 'receiving');
+    seat.querySelector('.seat-feedback')!.textContent = '';
+  });
+}
+function feedback(studentId: string, text: string) {
+  el(studentId).querySelector('.seat-feedback')!.textContent = text;
+}
 async function showEvents(events: GameEvent[]) {
   for (const event of events) {
     if (event.type === 'STUDENT_ACTION') {
-      document.querySelectorAll('.seat.active').forEach(s => s.classList.remove('active'));
+      clearActionFeedback();
       el(event.actorId).classList.add('active');
+      if (event.actionId === 'SUPPORT') {
+        el(event.targetId).classList.add('receiving');
+        feedback(event.actorId, `Aide ${studentName(event.targetId)}`);
+        el('status').textContent = `${studentName(event.actorId)} aide ${studentName(event.targetId)}.`;
+      } else {
+        feedback(event.actorId, event.extra ? 'Travaille à nouveau' : 'Travaille');
+        el('status').textContent = `${studentName(event.actorId)} travaille${event.extra ? ' à nouveau' : ''}.`;
+      }
       note(event.actionId === 'WORK' ? `${studentName(event.actorId)} travaille${event.extra ? ' à nouveau' : ''}.` : `${studentName(event.actorId)} soutient ${studentName(event.targetId)}.`);
     } else if (event.type === 'UNDERSTANDING_CHANGED') {
       shown.set(event.studentId, event.after); renderStudents();
+      feedback(event.studentId, `+${event.amount} compréhension`);
     } else if (event.type === 'EFFECT_APPLIED') {
+      feedback(event.targetId, `+${event.amount} concentration`);
+      el('status').textContent = `${studentName(event.sourceId)} aide ${studentName(event.targetId)} : +${event.amount} concentration jusqu’à la fin de cette étape.`;
       note(`${studentName(event.targetId)} : concentration +${event.amount} pour cette étape.`);
+    } else if (event.type === 'EXTRA_ACTION_CREATED') {
+      feedback(event.studentId, 'Action bonus prévue');
+      note(`${studentName(event.studentId)} obtient une action supplémentaire.`);
     } else if (event.type === 'ROUND_ENDED') {
       shown = new Map(event.students.map(s => [s.studentId, s.lessonUnderstanding])); renderStudents();
       el<HTMLProgressElement>('lesson-progress').value = event.round;
     }
-    if (event.type === 'UNDERSTANDING_CHANGED' || event.type === 'EFFECT_APPLIED') {
-      await new Promise(resolve => setTimeout(resolve, matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 230));
+    if (event.type === 'UNDERSTANDING_CHANGED' || event.type === 'EFFECT_APPLIED' || event.type === 'EXTRA_ACTION_CREATED') {
+      // Conserver le temps de lecture même lorsque les mouvements sont désactivés.
+      await new Promise(resolve => setTimeout(resolve, event.type === 'EFFECT_APPLIED' ? 1100 : 650));
     }
   }
-  document.querySelectorAll('.seat.active').forEach(s => s.classList.remove('active'));
+  clearActionFeedback();
 }
 async function advanceLesson() {
   if (busy) return;
@@ -93,7 +120,7 @@ async function advanceLesson() {
       simulation.acknowledgeRoundResult();
     }
   } catch (error) { note(error instanceof Error ? error.message : 'La leçon a rencontré une erreur.'); }
-  finally { busy = false; syncControls(); }
+  finally { clearActionFeedback(); busy = false; syncControls(); }
 }
 advance.addEventListener('click', () => { void advanceLesson(); });
 restart.addEventListener('submit', event => {
