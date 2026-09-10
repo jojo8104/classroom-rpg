@@ -1,0 +1,19 @@
+{
+  "name": "classroom-rpg",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "build": "tsc -p tsconfig.build.json && node scripts/build-web.mjs",
+    "dev": "npm run build && node scripts/serve.mjs",
+    "presimulate": "npm run build",
+    "simulate": "node dist/cli/simulate.js"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.2",
+    "typescript": "~5.9.3",
+    "vitest": "~3.2.4"
+  }
+}
