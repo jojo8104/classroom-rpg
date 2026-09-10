@@ -1,5 +1,14 @@
 # Classroom RPG
 
+Jouer : https://jojo8104.github.io/classroom-rpg/
+
+## Publication GitHub Pages
+
+GitHub Pages sert les fichiers compilés du dossier `docs/` sur la branche `master`.
+Pour publier une modification, exécuter `npm run build:pages`, puis inclure `docs/`
+dans le commit et envoyer celui-ci sur GitHub. Le fichier `.nojekyll` désactive le
+traitement Jekyll. Les chemins relatifs permettent de servir le jeu sous `/classroom-rpg/`.
+
 Moteur de simulation de classe en TypeScript, sans interface graphique.
 Le périmètre est décrit dans [roadmapglobal.md](./roadmapglobal.md).
 

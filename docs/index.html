@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="fr">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Classroom RPG — La classe</title><meta name="description" content="Une leçon, neuf élèves et autant de chemins pour comprendre."><link rel="stylesheet" href="./style.css"></head>
+<body>
+<header><a class="brand" href="./">CLASSROOM <b>RPG</b></a><span>LA CLASSE · 3 × 3</span><form id="restart"><label for="seed">Seed</label><input id="seed" type="number" min="0" max="4294967295" step="1" value="12345" required><button>Recommencer</button></form></header>
+<main><section class="classroom" aria-label="Salle de classe">
+<div class="board"><div class="board-top"><span>MATHÉMATIQUES / FRACTIONS</span><span id="chapter-count">CHAPITRE 1 / 2</span></div><h1>Introduction<br>aux fractions</h1><div class="board-bottom"><div><span class="eyebrow">CHAPITRE EN COURS</span><h2 id="chapter">Découvrir</h2></div><div class="concepts"><span>fraction</span><span>numérateur</span><span>dénominateur</span></div></div><progress id="lesson-progress" max="6" value="0" aria-label="Progression de la leçon"></progress></div>
+<div class="teacher">Professeur <span>◇</span> <span id="phase">La classe est prête</span></div>
+<div id="seats" class="seats" aria-label="Les neuf élèves"></div>
+<div class="legend"><span class="offensive">● Offensif</span><span class="defensive">● Défensif</span><span class="support">● Support</span><span>Choisissez un élève pour voir sa fiche.</span></div>
+</section>
+<aside><div class="section-label">CARNET DU PROFESSEUR</div><section id="student-detail" aria-label="Fiche élève"></section><section class="activity"><div class="section-label">DERNIÈRES ACTIONS</div><ol id="log"><li>La leçon peut commencer.</li></ol></section></aside>
+<footer><div><span class="eyebrow">DÉROULEMENT</span><p id="status" role="status">Les élèves sont installés.</p></div><button id="advance" class="primary">Commencer la leçon <span>→</span></button></footer>
+</main><script type="module" src="./modules/ui/app.js"></script></body></html>

@@ -8,6 +8,7 @@
     "test": "vitest run",
     "build": "tsc -p tsconfig.build.json && node scripts/build-web.mjs",
     "dev": "npm run build && node scripts/serve.mjs",
+    "build:pages": "npm run build && node scripts/build-pages.mjs",
     "presimulate": "npm run build",
     "simulate": "node dist/cli/simulate.js"
   },
