@@ -1,4 +1,4 @@
-import type { Student, StudentLessonState, TemporaryEffect } from '../domain.js';
+import type { Student, StudentLessonState, TemporaryEffect, TemporaryStat } from '../domain.js';
 import type { ActionEvent } from '../events.js';
 import { roundValue } from './combat.js';
 
@@ -7,7 +7,7 @@ export function validateEffects(state: StudentLessonState): void {
   if (!Array.isArray(state.effects)) throw new Error('Effets temporaires : liste requise.');
   for (const effect of state.effects) {
     if (!effect.id || ids.has(effect.id) || !effect.sourceId || !effect.abilityId || effect.targetId !== state.studentId ||
-        !['intelligence', 'discipline', 'morale'].includes(effect.stat) ||
+        !['intelligence', 'discipline', 'morale', 'complexityReduction', 'disruptionReduction'].includes(effect.stat) ||
         !Number.isFinite(effect.value) || effect.value <= 0 || effect.value > 100 ||
         !Number.isSafeInteger(effect.remainingRounds) || effect.remainingRounds <= 0) {
       throw new Error('Effet temporaire invalide.');
@@ -21,10 +21,14 @@ export function validateEffects(state: StudentLessonState): void {
 export function effectiveStats(student: Student, state: StudentLessonState): Student {
   const result = { ...student, morale: state.morale, concentration: state.concentration };
   for (const stat of ['intelligence', 'discipline', 'morale'] as const) {
-    const bonus = state.effects.reduce((max, effect) => effect.stat === stat && effect.remainingRounds > 0 ? Math.max(max, effect.value) : max, 0);
+    const bonus = effectBonus(state, stat);
     if (bonus > 0) result[stat] = roundValue(Math.min(100, result[stat] + bonus));
   }
   return result;
+}
+
+export function effectBonus(state: StudentLessonState, stat: TemporaryStat): number {
+  return state.effects.reduce((max, effect) => effect.stat === stat && effect.remainingRounds > 0 ? Math.max(max, effect.value) : max, 0);
 }
 
 export function applyTemporaryEffect(state: StudentLessonState, effect: TemporaryEffect, events: ActionEvent[]): void {

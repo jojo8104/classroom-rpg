@@ -4,7 +4,7 @@ import { validateReactionSetup } from './reactions.js';
 export function validateScenario(scenario) {
     const errors = [];
     const { classroom, students, lesson } = scenario;
-    errors.push(...validateReactionSetup(students, { classroom, archetypes: scenario.archetypes,
+    errors.push(...validateReactionSetup(students, { interactionRules: scenario.interactionRules, classroom, archetypes: scenario.archetypes,
         relations: scenario.relations ?? [], abilities: scenario.reactionAbilities ?? [] }));
     function uniqueIds(items, label) {
         const ids = new Set();
@@ -45,6 +45,8 @@ export function validateScenario(scenario) {
     const archetypeIds = uniqueIds(scenario.archetypes, 'Archétype');
     const occupiedSeats = new Set();
     for (const student of students) {
+        if (student.disruptionChance !== undefined && (!Number.isFinite(student.disruptionChance) || student.disruptionChance < 0 || student.disruptionChance > 1))
+            errors.push('Probabilité de perturbation invalide.');
         if (!seatIds.has(student.seatId))
             errors.push(`Élève ${student.id} : siège inconnu ${student.seatId}.`);
         if (occupiedSeats.has(student.seatId))
@@ -58,6 +60,11 @@ export function validateScenario(scenario) {
     }
     for (const stat of ['pedagogy', 'authority', 'patience']) {
         checkStat(scenario.teacher[stat], `Professeur, ${stat}`);
+    }
+    if (scenario.teacher.maxPatience !== undefined) {
+        checkStat(scenario.teacher.maxPatience, 'Patience maximale');
+        if (scenario.teacher.maxPatience < scenario.teacher.patience)
+            errors.push('Patience maximale inférieure à la patience actuelle.');
     }
     if (scenario.topic.subjectId !== scenario.subject.id)
         errors.push('Thème : matière inconnue.');

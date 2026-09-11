@@ -1,7 +1,17 @@
+import { validateInteractionRules } from '../data/interactionRules.js';
+import { chapterMastery, checkMorale, masteryAccess } from './interactions.js';
 import { moraleMultiplier, roundValue } from './combat.js';
 import { applyTemporaryEffect, effectiveStats } from './effects.js';
 export function validateReactionSetup(students, setup) {
     const errors = [];
+    if (setup.interactionRules) {
+        try {
+            validateInteractionRules(setup.interactionRules);
+        }
+        catch (error) {
+            errors.push(error.message);
+        }
+    }
     const studentIds = new Set(students.map(student => student.id));
     const pairs = new Set();
     for (const relation of setup.relations) {
@@ -21,6 +31,8 @@ export function validateReactionSetup(students, setup) {
         if (!ability.id.trim() || ids.has(ability.id))
             errors.push('Réaction : identifiant vide ou dupliqué.');
         ids.add(ability.id);
+        if (ability.mastery && (!Number.isFinite(ability.mastery.minimum) || ability.mastery.minimum < 0 || ability.mastery.minimum > 100 || typeof ability.mastery.scalesPower !== 'boolean'))
+            errors.push('Maîtrise de capacité invalide.');
         if (!Number.isFinite(ability.minRelation) || ability.minRelation < 0 || ability.minRelation > 100)
             errors.push('Réaction : seuil de relation invalide.');
         if (ability.effect === 'REDUCE_PRESSURE' || ability.effect === 'REDUCE_COMPLEXITY') {
@@ -74,15 +86,42 @@ export function resolveReactionWindow(context) {
     if (!targetState || targetState.concentration <= 0 || resting.has(target.id))
         return;
     const candidates = [];
-    for (const student of students) {
+    const interactionRules = setup.interactionRules;
+    if (interactionRules && !context.behavior)
+        throw new Error('Contexte comportemental manquant.');
+    const seat = (id) => setup.classroom.seats.find(s => s.id === students.find(student => student.id === id).seatId);
+    const ordered = [...students].sort((a, b) => seat(a.id).row - seat(b.id).row || seat(a.id).column - seat(b.id).column);
+    for (const student of ordered) {
         const state = states.get(student.id);
         if (!state || state.concentration <= 0 || resting.has(student.id) || !areAdjacent(student, target, setup.classroom))
             continue;
         const relation = relationBetween(student.id, target.id, setup.relations);
-        if (relation <= 0)
+        if (!interactionRules && relation <= 0)
             continue;
         const ids = student.reactionIds ?? setup.archetypes.find(archetype => archetype.id === student.archetypeId)?.reactionIds ?? [];
-        for (const ability of setup.abilities) {
+        const available = setup.abilities.filter(ability => ids.includes(ability.id) && ability.window === window && !resolvedEffects.has(effectKey(ability)))
+            .sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+        const checks = interactionRules && available.length ? checkMorale(student.id, effectiveStats(student, state).morale, context.behavior.random, interactionRules, events, window, target.id) : undefined;
+        const mastery = interactionRules ? chapterMastery(state, lesson, context.behavior.chapterId) : 100;
+        const targetMastery = interactionRules ? chapterMastery(targetState, lesson, context.behavior.chapterId) : 100;
+        for (const ability of available) {
+            let powerModifier = 1;
+            let noEffect = false;
+            if (interactionRules) {
+                const access = masteryAccess(ability, mastery, targetMastery, interactionRules);
+                powerModifier = access.modifier * (checks.negative ? interactionRules.negativePowerMultiplier : 1);
+                noEffect = powerModifier <= 0 ||
+                    ability.effect === 'REDUCE_PRESSURE' && lesson.pressure <= 0 ||
+                    ability.effect === 'REDUCE_COMPLEXITY' && (lesson.complexity <= 0 || effectiveStats(student, state).intelligence <= 0) ||
+                    ability.effect === 'COMBINED_ATTACK' && (rules.workScale <= 0 || effectiveStats(student, state).intelligence <= 0 || effectiveStats(target, targetState).intelligence <= 0) ||
+                    ability.effect === 'APPLY_TEMPORARY_EFFECT' && (roundValue(ability.value * relation / 100 * powerModifier) <= 0 ||
+                        window === 'AFTER_STUDENT_ATTACK' && !context.attackSucceeded || effectiveStats(target, targetState)[ability.stat] >= 100);
+                const reason = !checks.positive ? 'morale' : relation <= 0 || relation < ability.minRelation ? 'relation' : !access.allowed ? 'mastery' : noEffect ? 'noEffect' : 'eligible';
+                events.push({ type: 'REACTION_EVALUATED', sourceId: student.id, targetId: target.id, abilityId: ability.id,
+                    window, reason, mastery, targetMastery, minimum: access.minimum, modifier: powerModifier });
+                if (reason !== 'eligible')
+                    continue;
+            }
             if (resolvedEffects.has(effectKey(ability)))
                 continue;
             if (ability.effect === 'REDUCE_PRESSURE' && lesson.pressure <= 0)
@@ -93,7 +132,7 @@ export function resolveReactionWindow(context) {
                 effectiveStats(student, state).intelligence <= 0 || effectiveStats(target, targetState).intelligence <= 0))
                 continue;
             if (ability.effect === 'APPLY_TEMPORARY_EFFECT') {
-                if (roundValue(ability.value * relation / 100) <= 0)
+                if (roundValue(ability.value * relation / 100 * powerModifier) <= 0)
                     continue;
                 if (window === 'AFTER_STUDENT_ATTACK' && !context.attackSucceeded)
                     continue;
@@ -101,18 +140,20 @@ export function resolveReactionWindow(context) {
                     continue;
             }
             if (ids.includes(ability.id) && ability.window === window && relation >= ability.minRelation) {
-                candidates.push({ actorId: student.id, targetId: target.id, ability, relation, depth: context.depth });
+                candidates.push({ actorId: student.id, targetId: target.id, ability, relation, powerModifier, depth: context.depth });
             }
         }
     }
-    const seat = (id) => setup.classroom.seats.find(s => s.id === students.find(student => student.id === id).seatId);
     candidates.sort((a, b) => b.relation - a.relation || seat(a.actorId).row - seat(b.actorId).row ||
         seat(a.actorId).column - seat(b.actorId).column ||
         Number(b.ability.effect === 'COMBINED_ATTACK') - Number(a.ability.effect === 'COMBINED_ATTACK') ||
         (a.ability.id < b.ability.id ? -1 : a.ability.id > b.ability.id ? 1 : 0));
     // Pour un même partenaire, une capacité de combo débloquée remplace sa
-    // réduction simple, y compris si elles déclarent deux fenêtres différentes.
+    // réduction simple. Avec checks de moral, seules les opportunités validées
+    // dans la fenêtre actuelle sont prioritaires : aucune réservation future.
     const comboPartners = new Set(candidates.filter(candidate => candidate.ability.effect === 'REDUCE_COMPLEXITY').filter(candidate => {
+        if (interactionRules)
+            return candidates.some(other => other.actorId === candidate.actorId && other.ability.effect === 'COMBINED_ATTACK');
         const student = students.find(student => student.id === candidate.actorId);
         const ids = student.reactionIds ?? setup.archetypes.find(archetype => archetype.id === student.archetypeId)?.reactionIds ?? [];
         return rules.workScale > 0 && effectiveStats(student, states.get(student.id)).intelligence > 0 &&
@@ -137,10 +178,11 @@ export function resolveReactionWindow(context) {
         const source = students.find(student => student.id === reaction.actorId);
         const state = effectiveStats(source, states.get(source.id));
         const ability = reaction.ability;
+        const powerModifier = reaction.powerModifier ?? 1;
         let before;
         let after;
         if (ability.effect === 'COMBINED_ATTACK') {
-            context.modifiers.combined = { partner: state, synergyRatio: ability.synergy * reaction.relation / 100 };
+            context.modifiers.combined = { partner: state, synergyRatio: ability.synergy * reaction.relation / 100 * powerModifier };
             resolvedEffects.add(effectKey(ability));
             events.push({ type: 'COMBINED_ATTACK_STARTED', sourceId: source.id, targetId: target.id,
                 abilityId: ability.id, relation: reaction.relation });
@@ -150,7 +192,7 @@ export function resolveReactionWindow(context) {
             const stat = ability.effect === 'REDUCE_PRESSURE' ? 'pressure' : 'complexity';
             const power = ability.effect === 'REDUCE_PRESSURE' ? state.discipline : state.intelligence;
             const ratio = Math.min(ability.maxReduction, ability.reduction *
-                power / rules.defenseReference * moraleMultiplier(state.morale) * reaction.relation / 100);
+                power / rules.defenseReference * moraleMultiplier(state.morale) * reaction.relation / 100 * powerModifier);
             before = lesson[stat];
             lesson[stat] = roundValue(Math.max(0, before * (1 - ratio)));
             after = lesson[stat];
@@ -158,7 +200,7 @@ export function resolveReactionWindow(context) {
         else {
             before = effectiveStats(target, targetState)[ability.stat];
             // La relation module la puissance ; le plafond des statistiques reste 100.
-            const value = roundValue(ability.value * reaction.relation / 100);
+            const value = roundValue(ability.value * reaction.relation / 100 * powerModifier);
             applyTemporaryEffect(targetState, {
                 id: JSON.stringify([source.id, target.id, ability.id]), abilityId: ability.id,
                 sourceId: source.id, targetId: target.id, stat: ability.stat, value,

@@ -164,6 +164,96 @@ L'hébergement utilisé est GitHub Pages, pas Sites.
 
 ## Hors périmètre
 
-Personnalités, évolution des relations, softskills, environnement, interventions du professeur,
+Personnalités, évolution des relations, softskills, environnement,
 validation des concepts, sauvegarde, agenda et sprites restent à développer.
 WebMCP facultatif : read_classroom et advance_lesson, vérifiés dans l'aperçu local.
+
+## Interventions du professeur
+
+Après le bilan de chaque round, choisir une intervention, sa cible si nécessaire,
+puis confirmer. Le round suivant se lance séparément. Le dernier bilan propose
+uniquement de clôturer la leçon gratuitement.
+
+| Intervention | Patience | Effet avec une statistique de 60 |
+|---|---:|---|
+| Encourager | 8 | +14 moral pour un élève |
+| Réexpliquer | 14 | −18 complexité pour un élève pendant 2 prochains rounds |
+| Recadrer | 10 | −60 % de risque de perturbation pendant 2 prochains rounds |
+| Faire une pause | 6 | +18 concentration pour toute la classe |
+| Ne pas intervenir | 0 | Conserver la patience |
+
+La puissance vaut `min(100, puissance de base × statistique / 60)` : pédagogie
+pour encourager, réexpliquer et faire une pause ; autorité pour recadrer.
+Les ressources sont plafonnées à 100. La patience ne se régénère pas dans cette
+première version. Une cible invalide, une patience insuffisante ou une action
+sans effet immédiat évident est refusée avant toute mutation.
+
+Après un check négatif réussi, Hugo a une probabilité configurable de 40 % de perturber un voisin au lieu de
+travailler ou soutenir. La perturbation consomme son action principale. Ses dégâts
+valent `16 × (1 − autorité / 100)`, limités à la concentration restante de la cible.
+L'autorité reste active même à zéro patience. Le recadrage multiplie la probabilité
+par `1 − puissance / 100`. Le repos reste prioritaire si l'élève a décroché.
+Ces valeurs sont provisoires ; elles ne constituent pas encore un système de personnalités.
+
+Les effets du professeur utilisent la durée et le renouvellement des effets
+existants. Les décisions sont conservées dans le résultat et le journal ; une
+même seed accompagnée des mêmes décisions reproduit la leçon.
+Après `npm run build`, essayer `node dist/cli/simulate.js 12345 --teacher-demo`.
+Les règles se trouvent dans `src/data/teacherRules.ts`, les interventions dans
+`src/engine/teacher.ts` et les perturbations dans `src/engine/disruptions.ts`.
+
+## Point 35 ter : maîtrise et comportement
+
+Le prototype active `interactionRules` dans ses données. Les scénarios sans cette
+configuration conservent les règles antérieures, notamment pour les tests unitaires
+des effets. Le scénario jouable utilise toutes les nouvelles conditions.
+
+Le moral reste stocké entre 0 et 100. Le coefficient historique vaut
+`0.10 + 1.80 × moral / 100` (50 devient 1.00). Les bonus de moral actifs entrent
+dans ce calcul. Les probabilités sont calculées séparément puis bornées entre 0 et 1 :
+
+- négative : `1.20 − coefficient` ;
+- positive : `coefficient − 0.80`.
+
+À 1.00, chacun des deux tirages a 20 % de chances de réussir. Deux nombres distincts
+du RNG sont toujours consommés, même avec une probabilité de 0 ou 100 %.
+
+Ordre déterministe : les tours principaux suivent les sièges ; leur paire de checks
+est effectuée au début du tour, sur l'état actuel. Le repos garde la priorité.
+Les actions supplémentaires de travail ne relancent pas les checks principaux.
+Pour chaque fenêtre, les voisins disponibles possédant une capacité correspondante
+sont parcourus par siège. Chacun reçoit une seule paire de checks, partagée par ses
+capacités dans cette fenêtre, puis le moteur vérifie relation, maîtrise et effet utile.
+Les candidats retenus sont départagés par relation, siège, priorité du combo puis
+identifiant de capacité. Les budgets existants restent applicables.
+
+Un check positif permet de chercher une aide ; il ne garantit ni cible ni effet.
+Le soutien principal de concentration conserve la préférence de l'archétype, mais
+exige désormais un voisin avec au moins 40 de relation et de la concentration à restaurer.
+Un check négatif ouvre la perturbation chez Hugo ; sinon il réduit à 75 % la puissance
+du travail ou du soutien principal. Pour une réaction, il réduit à 75 % sa puissance
+sans annuler un check positif réussi. Ce choix provisoire permet aux deux opportunités
+de coexister. L'autorité réduit toujours les dégâts des perturbations et le recadrage
+réduit leur chance conditionnelle, sans neutraliser toutes les difficultés de moral.
+
+La maîtrise vaut `100 × progression du chapitre actuel / capacité du chapitre`.
+Les aides pédagogiques (intelligence, complexité, combo) demandent par défaut 20 %,
+ou 60 % chez les deux élèves pour un combo. Leur puissance est multipliée par la
+maîtrise divisée par 100 ; le combo utilise la plus faible des deux maîtrises pour
+la synergie. Les deux contributions gardent leur calcul d'attaque habituel : le
+combo conserve ainsi un gain potentiel supérieur à leur somme, même au seuil de
+déblocage (le plafond du chapitre peut limiter la progression effectivement acquise). Une aide sociale (discipline, moral) ou une protection
+n'exige pas de maîtrise et ne subit pas cette modulation pédagogique.
+
+Chaque capacité peut redéfinir `mastery: { minimum, scalesPower }`. Les seuils communs
+et le malus sont dans `src/data/interactionRules.ts`. Un nouveau chapitre repart de
+ses propres acquis : la maîtrise du chapitre précédent ne débloque pas ses aides.
+Un combo refusé laisse possible une réduction simple accessible. Une capacité future
+ne réserve pas une réaction : seules les opportunités validées dans la fenêtre
+actuelle sont prioritaires.
+
+Le journal indique chaque check, sa probabilité, son tirage et les conditions
+d'éligibilité. « eligible » désigne un candidat, pas une réaction garantie : la file
+et les priorités décident ensuite. La fiche élève affiche maîtrise, chances et dernier
+refus. Les nouvelles consommations de RNG changent les résultats des anciennes seeds ;
+à configuration, seed et décisions identiques, le résultat reste reproductible.

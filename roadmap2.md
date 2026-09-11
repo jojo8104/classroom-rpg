@@ -1686,6 +1686,748 @@ mais plutôt :
 
 "qui fonctionne bien avec qui, et pourquoi ?"
 
+# 35 ter — Maîtrise du sujet, moral et déclenchement des interactions
+
+Les interactions entre élèves ne doivent pas dépendre uniquement :
+
+- de leur archétype ;
+- de leur relation ;
+- de leur position.
+
+La compréhension actuelle du sujet et le moral de chaque élève doivent également déterminer ce qu'il est réellement capable de faire.
+
+Le principe général est :
+
+```text
+PROGRESSION / MAÎTRISE
+→ détermine les interactions accessibles
+
+RELATION
+→ détermine l'éligibilité et l'intensité de l'interaction
+
+MORAL
+→ détermine la probabilité de comportement positif ou négatif
+```
+
+---
+
+## 35.15 — La maîtrise limite les interactions possibles
+
+Un élève qui ne comprend pas suffisamment le sujet ne doit pas pouvoir apporter une aide pédagogique qu'il serait lui-même incapable de fournir.
+
+Exemple :
+
+```text
+Élève très faible sur le chapitre
+→ ne peut pas réellement expliquer
+→ ne peut pas réduire efficacement la complexité
+→ ne peut pas participer efficacement à une attaque combinée
+```
+
+En revanche, il peut toujours apporter des interactions ne nécessitant pas de maîtrise pédagogique importante :
+
+```text
+encourager
+rassurer
+motiver
+aider à rester concentré
+favoriser la discipline
+```
+
+Il faut donc distinguer :
+
+```text
+INTERACTIONS SOCIALES
+
+et
+
+INTERACTIONS PÉDAGOGIQUES
+```
+
+---
+
+# 35.16 — Interactions sociales
+
+Les interactions sociales nécessitent peu ou pas de maîtrise du sujet.
+
+Exemples :
+
+```text
+MORAL +
+CONCENTRATION +
+DISCIPLINE +
+réduction d'un malus émotionnel
+encouragement
+```
+
+Un élève en difficulté peut donc malgré tout être utile à ses camarades.
+
+Cela évite qu'un élève ayant peu progressé devienne complètement inutile dans la simulation.
+
+---
+
+# 35.17 — Interactions pédagogiques
+
+Les interactions pédagogiques doivent dépendre du niveau de compréhension ou de progression de l'élève qui intervient.
+
+Exemples :
+
+```text
+INTELLIGENCE effective +
+PROGRESSION +
+COMPLEXITÉ -
+attaque de la COMPLEXITÉ
+attaque combinée
+explication
+```
+
+Plus l'élève maîtrise le contenu, plus son intervention pédagogique peut être efficace.
+
+Conceptuellement :
+
+```text
+efficacité pédagogique
+=
+effet de base
+× maîtrise du sujet
+× relation
+× autres modificateurs
+```
+
+La formule exacte devra rester configurable.
+
+---
+
+# 35.18 — Niveaux d'accès aux interactions
+
+Ne pas coder chaque capacité avec des conditions dispersées dans le moteur.
+
+Prévoir une notion générique de niveau de maîtrise requis.
+
+Exemple conceptuel :
+
+```text
+MAÎTRISE TRÈS FAIBLE
+→ interactions sociales seulement
+
+MAÎTRISE FAIBLE
+→ petits soutiens pédagogiques possibles
+
+MAÎTRISE CORRECTE
+→ effets pédagogiques normaux
+
+MAÎTRISE ÉLEVÉE
+→ effets pédagogiques renforcés
+→ attaques coordonnées
+
+MAÎTRISE TRÈS ÉLEVÉE
+→ possibilité de synergies avancées
+→ attaques combinées puissantes
+```
+
+Les seuils exacts ne sont pas encore imposés.
+
+Ils doivent être définis dans les données/configurations afin de pouvoir être équilibrés facilement.
+
+---
+
+# 35.19 — Exemple : Offensif peu avancé
+
+Un élève Offensif ne doit pas automatiquement pouvoir réduire fortement la complexité simplement parce que son archétype est Offensif.
+
+Exemple :
+
+```text
+Offensif
+Compréhension actuelle : faible
+
+→ attaque pédagogique de soutien très limitée
+→ faible réduction éventuelle de complexité
+→ attaque combinée inaccessible ou très faible
+```
+
+En revanche :
+
+```text
+Offensif
+Compréhension actuelle : élevée
+
+→ attaque efficace de la complexité
+→ forte contribution à une attaque coordonnée
+→ attaque combinée possible
+```
+
+---
+
+# 35.20 — Exemple : Soutien peu avancé
+
+Un Soutien ayant mal compris le sujet peut toujours :
+
+```text
+encourager
+augmenter le moral
+aider à conserver la concentration
+favoriser la discipline
+```
+
+Mais il ne doit pas nécessairement pouvoir :
+
+```text
+augmenter fortement l'intelligence effective
+réduire fortement la complexité
+augmenter directement la progression
+```
+
+Ces capacités demandent une maîtrise pédagogique suffisante.
+
+---
+
+# 35.21 — Moral : deux contrôles indépendants
+
+Pour chaque élève concerné par une action ou une réaction, le moral doit être utilisé pour effectuer deux contrôles distincts :
+
+```text
+CHECK NÉGATIF
++
+CHECK POSITIF
+```
+
+Ces contrôles servent à déterminer :
+
+```text
+risque d'effet négatif / mauvaise action
+
+et
+
+opportunité d'interaction positive / effet de classe
+```
+
+Ils ne remplacent pas les règles d'archétype, de relation ou de maîtrise.
+
+Ils déterminent si une opportunité comportementale apparaît.
+
+---
+
+# 35.22 — Check négatif du moral
+
+À partir d'un moral de :
+
+```text
+1.20
+```
+
+le risque d'effet négatif est :
+
+```text
+0 %
+```
+
+En dessous de `1.20`, le risque augmente de :
+
+```text
+1 % par tranche de 0.01 de moral perdue
+```
+
+Formule conceptuelle :
+
+```ts
+negativeChance =
+  clamp((1.20 - morale) * 100, 0, 100);
+```
+
+ou toute formule équivalente évitant les erreurs d'arrondi flottant.
+
+Exemples :
+
+```text
+Moral 1.20
+→ 0 %
+
+Moral 1.10
+→ 10 %
+
+Moral 1.00
+→ 20 %
+
+Moral 0.90
+→ 30 %
+
+Moral 0.80
+→ 40 %
+
+Moral 0.50
+→ 70 %
+
+Moral 0.20
+→ 100 %
+```
+
+La probabilité doit être limitée à :
+
+```text
+0 % – 100 %
+```
+
+---
+
+# 35.23 — Conséquences possibles du check négatif
+
+La réussite du check négatif ne signifie pas nécessairement toujours la même chose.
+
+Elle crée une opportunité de comportement défavorable.
+
+Exemples futurs :
+
+```text
+perte d'efficacité
+mauvaise action
+perturbation
+refus d'aider
+distraction d'un voisin
+mauvaise explication
+perte supplémentaire de concentration
+effet négatif sur le moral d'un camarade
+```
+
+L'effet disponible dépendra plus tard :
+
+```text
+de la personnalité
+de l'archétype
+de l'état
+de la relation
+du contexte
+```
+
+Roadmap 2 peut commencer avec un petit nombre de conséquences simples.
+
+---
+
+# 35.24 — Check positif du moral
+
+À :
+
+```text
+moral <= 0.80
+```
+
+la probabilité d'une interaction positive liée au moral est :
+
+```text
+0 %
+```
+
+Au-dessus de `0.80`, elle augmente de :
+
+```text
+1 % pour chaque tranche de 0.01 de moral
+```
+
+Exemples :
+
+```text
+Moral 0.80
+→ 0 %
+
+Moral 0.90
+→ 10 %
+
+Moral 1.00
+→ 20 %
+
+Moral 1.10
+→ 30 %
+
+Moral 1.20
+→ 40 %
+
+Moral 1.50
+→ 70 %
+
+Moral 1.80
+→ 100 %
+```
+
+La probabilité est limitée à :
+
+```text
+0 % – 100 %
+```
+
+Formule conceptuelle :
+
+```text
+positiveChance =
+clamp((morale - 0.80) × 100, 0, 100)
+```
+
+---
+
+# 35.25 — Conséquences possibles du check positif
+
+La réussite du check positif signifie qu'une opportunité positive peut apparaître.
+
+Elle ne garantit pas encore qu'une interaction soit possible.
+
+Le moteur doit ensuite vérifier :
+
+```text
+archétype
+capacité disponible
+maîtrise
+relation
+position
+cible valide
+limites de réaction
+```
+
+Pipeline :
+
+```text
+CHECK POSITIF RÉUSSI
+↓
+chercher une interaction potentielle
+↓
+vérifier les conditions
+↓
+si interaction valide :
+    déclencher la réaction
+sinon :
+    aucune réaction
+```
+
+Ainsi, un moral élevé augmente les occasions d'interagir sans contourner les autres règles du jeu.
+
+---
+
+# 35.26 — Deux checks par élève actif
+
+Lorsqu'un élève commence ou résout son action principale, effectuer :
+
+```text
+CHECK NÉGATIF
+CHECK POSITIF
+```
+
+Ces checks servent notamment à déterminer :
+
+```text
+mauvaise action éventuelle
+comportement perturbateur éventuel
+
+et
+
+opportunité de comportement positif
+```
+
+Les résultats doivent utiliser le générateur aléatoire déterministe existant.
+
+---
+
+# 35.27 — Checks des élèves susceptibles d'intervenir
+
+Lorsqu'une fenêtre de réaction apparaît, les élèves éligibles doivent également pouvoir effectuer leurs propres checks de moral.
+
+Exemple :
+
+```text
+Alice attaque.
+
+Paul est voisin et possède une capacité de Soutien.
+
+→ check négatif de Paul
+→ check positif de Paul
+→ vérification relation
+→ vérification maîtrise
+→ vérification capacité
+→ réaction éventuelle
+```
+
+Même principe pour :
+
+```text
+Offensif
+Défenseur
+Support
+```
+
+Cela signifie qu'un élève au moral très faible peut posséder théoriquement une excellente capacité mais ne pas parvenir à l'utiliser efficacement.
+
+À l'inverse, un élève en très bon état moral génère davantage d'opportunités positives.
+
+---
+
+# 35.28 — Ordre recommandé de résolution d'une réaction
+
+Pour un élève potentiellement aidant :
+
+```text
+1. vérifier qu'il peut physiquement/socialement être candidat
+2. effectuer les checks de moral nécessaires
+3. vérifier la relation
+4. vérifier la maîtrise nécessaire
+5. vérifier la capacité correspondant à la fenêtre
+6. calculer l'intensité
+7. produire l'effet
+```
+
+L'ordre exact peut être adapté si l'architecture existante justifie une autre organisation.
+
+Il doit cependant rester :
+
+```text
+déterministe
+documenté
+testable
+```
+
+---
+
+# 35.29 — Les deux checks peuvent réussir
+
+Le check positif et le check négatif sont conceptuellement indépendants.
+
+Dans les zones intermédiaires de moral, les deux probabilités peuvent donc être non nulles.
+
+Exemple :
+
+```text
+Moral = 1.00
+
+risque négatif :
+20 %
+
+opportunité positive :
+20 %
+```
+
+Il est donc possible que :
+
+```text
+aucun check ne réussisse ;
+seul le positif réussisse ;
+seul le négatif réussisse ;
+les deux réussissent.
+```
+
+Ne pas fusionner automatiquement les deux probabilités en une seule table exclusive.
+
+Cela permettra ultérieurement des comportements plus nuancés.
+
+Exemple :
+
+```text
+un élève peut aider un camarade
+mais être lui-même perturbateur pendant le même round.
+```
+
+---
+
+# 35.30 — Moral et relation ont des fonctions différentes
+
+Ne pas multiplier directement relation et moral pour obtenir une unique probabilité opaque.
+
+Ils répondent à deux questions différentes :
+
+```text
+MORAL
+→ l'élève est-il dans une disposition favorable pour agir positivement ?
+
+RELATION
+→ veut-il / peut-il produire cette interaction avec CET élève ?
+```
+
+Exemple :
+
+```text
+moral élevé
++
+mauvaise relation
+=
+beaucoup d'énergie positive,
+mais pas nécessairement dirigée vers ce camarade.
+```
+
+Inversement :
+
+```text
+très bonne relation
++
+moral très faible
+=
+fort potentiel relationnel,
+mais peu de disponibilité actuelle pour aider.
+```
+
+---
+
+# 35.31 — Maîtrise et relation dans une attaque combinée
+
+Une attaque combinée doit nécessiter plusieurs conditions.
+
+Conceptuellement :
+
+```text
+fenêtre OFFENSIVE valide
++
+bonne relation
++
+moral permettant l'interaction
++
+maîtrise suffisante du sujet
++
+capacité d'attaque combinée débloquée
+```
+
+La maîtrise des deux participants peut influencer la puissance de la synergie.
+
+Une très bonne relation ne doit pas permettre à deux élèves ne comprenant presque rien au sujet de produire miraculeusement une attaque pédagogique extrêmement puissante.
+
+---
+
+# 35.32 — Effet de la progression sur la puissance
+
+Même lorsque l'interaction est débloquée, sa puissance peut dépendre de la progression.
+
+Exemple conceptuel :
+
+```text
+interactionPower =
+basePower
+× masteryModifier
+× relationModifier
+× abilityModifier
+```
+
+Ne pas figer cette formule sans analyser les systèmes déjà présents.
+
+Le point important est :
+
+```text
+DÉBLOCAGE
+et
+PUISSANCE
+
+peuvent tous deux dépendre de la maîtrise.
+```
+
+---
+
+# 35.33 — Utiliser la progression locale au chapitre
+
+Pour déterminer la capacité pédagogique d'un élève, privilégier autant que possible sa maîtrise du contenu actuellement travaillé.
+
+Un élève peut :
+
+```text
+être excellent globalement en mathématiques
+
+mais
+
+avoir mal compris le chapitre actuel.
+```
+
+Il ne doit donc pas bénéficier automatiquement de toutes ses capacités pédagogiques maximales.
+
+La progression du chapitre / concept actuel doit pouvoir intervenir dans le calcul.
+
+La statistique `intelligence` reste une capacité générale.
+
+La compréhension représente ce que l'élève a effectivement acquis.
+
+---
+
+# 35.34 — Événements à prévoir
+
+Prévoir des événements ou données d'événement permettant de représenter :
+
+```text
+MORALE_NEGATIVE_CHECK
+MORALE_POSITIVE_CHECK
+
+POSITIVE_OPPORTUNITY_CREATED
+NEGATIVE_OPPORTUNITY_CREATED
+
+REACTION_REJECTED_LOW_MASTERY
+REACTION_REJECTED_RELATION
+REACTION_TRIGGERED
+
+MASTERY_MODIFIER_APPLIED
+```
+
+Il n'est pas obligatoire de créer un type d'événement séparé pour chacun si l'architecture événementielle existante permet de représenter proprement ces informations avec un événement générique.
+
+Le journal de debug doit néanmoins permettre de comprendre pourquoi une réaction :
+
+```text
+a été déclenchée
+n'a pas été déclenchée
+a été faible
+a été forte
+```
+
+---
+
+# 35.35 — Tests supplémentaires
+
+Ajouter des tests vérifiant au minimum :
+
+```text
+À moral 1.20, la probabilité négative vaut 0 %.
+
+À moral 1.00, la probabilité négative vaut 20 %.
+
+À moral 0.80, la probabilité négative vaut 40 %.
+
+À moral 0.80, la probabilité positive vaut 0 %.
+
+À moral 1.00, la probabilité positive vaut 20 %.
+
+À moral 1.20, la probabilité positive vaut 40 %.
+
+Les probabilités sont limitées entre 0 et 100 %.
+
+Les checks utilisent le RNG déterministe.
+
+Même seed + mêmes états produisent les mêmes checks.
+
+Le check positif et le check négatif sont indépendants.
+
+Un élève avec faible maîtrise peut produire un soutien social.
+
+Un élève avec faible maîtrise ne peut pas produire une interaction pédagogique exigeant une forte maîtrise.
+
+Une meilleure maîtrise augmente ou débloque certaines interactions pédagogiques.
+
+Une excellente relation ne contourne pas une exigence de maîtrise.
+
+Un excellent moral ne contourne pas une exigence de maîtrise.
+
+Une attaque combinée vérifie moral, relation et maîtrise.
+
+Un élève potentiellement aidant effectue ses propres checks de moral.
+```
+
+---
+
+# 35.36 — Objectif de game design
+
+Le joueur doit progressivement pouvoir observer des situations telles que :
+
+```text
+"Paul aime beaucoup Léa mais il ne comprend pas assez le chapitre pour l'aider à résoudre le problème."
+
+"Paul peut néanmoins l'encourager."
+
+"Marie maîtrise très bien le chapitre mais son moral est faible : elle aide rarement aujourd'hui."
+
+"Arthur maîtrise bien le sujet, possède un moral élevé et une excellente relation avec Julie : une attaque combinée devient probable."
+```
+
+Le système doit ainsi faire émerger les comportements à partir de plusieurs dimensions plutôt que d'une simple classe RPG.
+
+---
+
 # 36. Lacunes par chapitre
 
 Le système de lacunes introduit en Roadmap 1.1 doit continuer à fonctionner.

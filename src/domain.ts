@@ -9,6 +9,7 @@ export interface Student {
   archetypeId: string;
   seatId: string;
   reactionIds?: string[];
+  disruptionChance?: number;
 }
 
 export interface StudentArchetype {
@@ -24,6 +25,7 @@ export interface StudentRelation {
 }
 
 interface ReactionAbilityBase {
+  mastery?: { minimum: number; scalesPower: boolean };
   id: string;
   window: import('./events.js').ReactionWindow;
   minRelation: number;
@@ -39,7 +41,7 @@ export type ReactionAbility = ReactionAbilityBase & ({
   maxReduction: number;
 } | {
   effect: 'APPLY_TEMPORARY_EFFECT';
-  stat: TemporaryStat;
+  stat: 'intelligence' | 'discipline' | 'morale';
   value: number;
   durationInRounds: number;
 } | {
@@ -47,7 +49,7 @@ export type ReactionAbility = ReactionAbilityBase & ({
   synergy: number;
 });
 
-export type TemporaryStat = 'intelligence' | 'discipline' | 'morale';
+export type TemporaryStat = 'intelligence' | 'discipline' | 'morale' | 'complexityReduction' | 'disruptionReduction';
 
 export interface TemporaryEffect {
   id: string;
@@ -64,7 +66,14 @@ export interface Teacher {
   pedagogy: number;
   authority: number;
   patience: number;
+  maxPatience?: number;
 }
+
+export interface TeacherState extends Teacher { maxPatience: number }
+export type TeacherActionKind = 'ENCOURAGE' | 'REEXPLAIN' | 'REFRAME' | 'BREAK' | 'PASS';
+export type TeacherAction = { kind: 'ENCOURAGE' | 'REEXPLAIN' | 'REFRAME'; targetId: string }
+  | { kind: 'BREAK' | 'PASS' };
+export type TargetKind = 'SELF' | 'ONE_STUDENT' | 'ALL_STUDENTS';
 
 export interface Seat {
   id: string;
@@ -137,6 +146,7 @@ export interface LessonResult {
 }
 
 export interface PrototypeScenario {
+  interactionRules?: import('./data/interactionRules.js').InteractionRules;
   relations?: StudentRelation[];
   reactionAbilities?: ReactionAbility[];
   teacher: Teacher;

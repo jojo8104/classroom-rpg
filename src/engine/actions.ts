@@ -1,13 +1,16 @@
+import { checkMorale } from './interactions.js';
 import type { Lesson, Student, StudentLessonState } from '../domain.js';
-import type { ActionEvent, ActionKind, ActionLimitReason, ReactionLimitReason } from '../events.js';
+import type { ActionEvent, ActionKind, ActionLimitReason, ConcentrationReason, ReactionLimitReason } from '../events.js';
 import type { ActionRules } from '../data/rules.js';
 import { statBounds } from '../data/rules.js';
 import { SeededRandom } from './random.js';
 import { chapterCapacity, roundValue } from './combat.js';
 
 import { resolveWorkTurn, type AttackModifiers } from './turn.js';
-import { endRoundEffects, validateEffects } from './effects.js';
-import { resolveReactionWindow, validateReactionSetup, type QueuedReaction, type ReactionSetup } from './reactions.js';
+import { effectBonus, effectiveStats, endRoundEffects, validateEffects } from './effects.js';
+import { areAdjacent, relationBetween, resolveReactionWindow, validateReactionSetup, type QueuedReaction, type ReactionSetup } from './reactions.js';
+import { updateConcentration } from './resources.js';
+import { disruptionChance, resolveDisruption, type TeacherRoundContext } from './disruptions.js';
 
 export interface QueuedAction {
   actorId: string;
@@ -95,6 +98,7 @@ export function resolveActionRound(
   students: readonly Student[], initialStates: readonly StudentLessonState[],
   random: SeededRandom, rules: ActionRules, lesson: Lesson, chapterId: string,
   reactionSetup?: ReactionSetup,
+  teacherContext?: TeacherRoundContext,
 ): ActionRoundResult {
   validateActionRules(rules, students.length);
   if (reactionSetup) {
@@ -130,20 +134,24 @@ export function resolveActionRound(
   }
 
   const events: ActionEvent[] = [];
-  function changeConcentration(state: StudentLessonState, value: number, reason: 'pressure' | 'support' | 'recovery') {
-    const before = state.concentration;
-    state.concentration = roundValue(Math.max(0, Math.min(100, value)));
-    events.push({ type: 'CONCENTRATION_CHANGED', studentId: state.studentId, before, after: state.concentration, reason });
-    if (before > 0 && state.concentration === 0) {
-      const moraleBefore = state.morale;
-      state.morale = roundValue(Math.max(0, state.morale - rules.dropoutMoraleLoss));
-      events.push({ type: 'STUDENT_DROPPED_OUT', studentId: state.studentId });
-      events.push({ type: 'MORALE_CHANGED', studentId: state.studentId, before: moraleBefore, after: state.morale });
-    } else if (before === 0 && state.concentration > 0) {
-      events.push({ type: 'STUDENT_RESUMED', studentId: state.studentId });
-    }
+  function changeConcentration(state: StudentLessonState, value: number, reason: ConcentrationReason) {
+    updateConcentration(state, value, reason, rules.dropoutMoraleLoss, events);
+  }
+  const interactionRules = reactionSetup?.interactionRules;
+  function supportCandidates(student: Student) {
+    return students.filter(candidate => candidate.id !== student.id && (!interactionRules || reactionSetup &&
+      areAdjacent(student, candidate, reactionSetup.classroom) &&
+      relationBetween(student.id, candidate.id, reactionSetup.relations) >= interactionRules.mainSupportMinimumRelation &&
+      relationBetween(student.id, candidate.id, reactionSetup.relations) > 0 && states.get(candidate.id)!.concentration < 100));
   }
   for (const student of students) {
+    if (interactionRules) { queue.enqueue({ actorId: student.id, kind: 'WORK', depth: 0 }); continue; }
+    if (teacherContext && reactionSetup && (student.disruptionChance ?? 0) > 0 &&
+        students.some(other => areAdjacent(student, other, reactionSetup.classroom)) &&
+        random.next() < disruptionChance(student, states.get(student.id)!)) {
+      queue.enqueue({ actorId: student.id, kind: 'DISRUPT', depth: 0 });
+      continue;
+    }
     const kind = random.next() < rules.supportChanceByArchetype[student.archetypeId]! && students.length > 1 ? 'SUPPORT' : 'WORK';
     queue.enqueue({ actorId: student.id, kind, depth: 0 });
   }
@@ -156,6 +164,20 @@ export function resolveActionRound(
     const state = states.get(student.id)!;
     const chapter = state.chapters.find(c => c.chapterId === chapterId)!;
     if (action.depth > 0 && (state.concentration === 0 || resting.has(student.id))) continue;
+    const checks = interactionRules && action.depth === 0 ? checkMorale(student.id, effectiveStats(student, state).morale,
+      random, interactionRules, events, 'MAIN_ACTION', student.id) : undefined;
+    let turnRules = rules;
+    if (checks && state.concentration > 0) {
+      const support = checks.positive && random.next() < rules.supportChanceByArchetype[student.archetypeId]! && supportCandidates(student).length > 0;
+      const disrupt = checks.negative && teacherContext && reactionSetup && (student.disruptionChance ?? 0) > 0 &&
+        students.some(other => areAdjacent(student, other, reactionSetup.classroom)) && random.next() < disruptionChance(student, state);
+      action.kind = disrupt ? 'DISRUPT' : support ? 'SUPPORT' : 'WORK';
+      if (checks.negative && !disrupt) {
+        turnRules = { ...rules, workScale: rules.workScale * interactionRules!.negativePowerMultiplier,
+          supportBonus: rules.supportBonus * interactionRules!.negativePowerMultiplier };
+        events.push({ type: 'BEHAVIOR_APPLIED', studentId: student.id, effect: 'DISTRACTED', multiplier: interactionRules!.negativePowerMultiplier });
+      }
+    }
     if (state.concentration === 0) {
       resting.add(student.id);
       chapter.missedRounds++;
@@ -167,24 +189,26 @@ export function resolveActionRound(
     if (action.kind === 'WORK') {
       events.push({ type: 'STUDENT_ACTION', actorId: student.id, actionId: 'WORK', targetId: student.id, extra: action.depth > 0 });
       // La réaction modifie uniquement la leçon effective de cette action.
-      const effectiveLesson = { ...lesson };
+      const effectiveLesson = { ...lesson, complexity: Math.max(0, lesson.complexity - effectBonus(state, 'complexityReduction')) };
       const understandingBefore = state.lessonUnderstanding;
       const resolvedEffects = new Set<string>();
       const modifiers: AttackModifiers = {};
-      const turn = resolveWorkTurn({ student, state, lesson: effectiveLesson, chapterId, rules, random, events, changeConcentration, modifiers });
+      const turn = resolveWorkTurn({ student, state, lesson: effectiveLesson, chapterId, rules: turnRules, random, events, changeConcentration, modifiers });
       for (const window of turn) {
         events.push({ type: 'REACTION_WINDOW_OPENED', studentId: student.id, window, extra: action.depth > 0 });
-        if (reactionSetup) resolveReactionWindow({ window, target: student, students, states,
+        if (reactionSetup) resolveReactionWindow({ behavior: { chapterId, random }, window, target: student, students, states,
           resting, setup: reactionSetup, lesson: effectiveLesson, rules, queue, depth: action.depth + 1, events, resolvedEffects,
           attackSucceeded: state.lessonUnderstanding > understandingBefore, modifiers });
       }
+    } else if (action.kind === 'DISRUPT' && teacherContext && reactionSetup) {
+      resolveDisruption(student, students, reactionSetup.classroom, teacherContext, states, random, events, changeConcentration);
     } else {
-      const candidates = students.filter(candidate => candidate.id !== student.id);
+      const candidates = supportCandidates(student);
       const target = candidates[random.integer(candidates.length)]!;
       const targetState = states.get(target.id)!;
       events.push({ type: 'STUDENT_ACTION', actorId: student.id, actionId: 'SUPPORT', targetId: target.id, extra: action.depth > 0 });
       const before = targetState.concentration;
-      changeConcentration(targetState, before + rules.supportBonus, 'support');
+      changeConcentration(targetState, before + turnRules.supportBonus, 'support');
       events.push({ type: 'EFFECT_APPLIED', sourceId: student.id, targetId: target.id,
         effectId: 'concentration_bonus', before, after: targetState.concentration, amount: roundValue(targetState.concentration - before) });
       if (random.next() < rules.extraActionChance && targetState.concentration > 0 && !resting.has(target.id)) {

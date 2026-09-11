@@ -1,3 +1,4 @@
+import { createInteractionRules } from './interactionRules.js';
 import type { PrototypeScenario } from '../domain.js';
 
 // Une nouvelle instance à chaque appel évite de partager un état mutable entre tests.
@@ -5,6 +6,7 @@ export function createPrototype(): PrototypeScenario {
   const names = ['Alice', 'Paul', 'Léa', 'Hugo', 'Emma', 'Louis', 'Inès', 'Adam', 'Chloé'];
   const archetypeIds = ['offensive', 'defensive', 'support'];
   return {
+    interactionRules: createInteractionRules(),
     relations: [
       { studentIds: ['student-1', 'student-2'], value: 85 },
       { studentIds: ['student-2', 'student-3'], value: 25 },
@@ -28,7 +30,7 @@ export function createPrototype(): PrototypeScenario {
       { id: 'combined_attack', window: 'BEFORE_STUDENT_ATTACK', effect: 'COMBINED_ATTACK',
         minRelation: 90, synergy: 0.25 },
     ],
-    teacher: { id: 'teacher', pedagogy: 60, authority: 60, patience: 70 },
+    teacher: { id: 'teacher', pedagogy: 60, authority: 60, patience: 70, maxPatience: 70 },
     classroom: {
       id: 'classroom', rows: 3, columns: 3,
       seats: Array.from({ length: 9 }, (_, index) => ({
@@ -41,6 +43,7 @@ export function createPrototype(): PrototypeScenario {
       concentration: 55 + index * 2, morale: 65,
       archetypeId: archetypeIds[index % 3]!, seatId: `seat-${index + 1}`,
       ...(index === 5 ? { reactionIds: ['steady_neighbor'] } : index === 8 ? { reactionIds: ['motivate_neighbor'] } : {}),
+      ...(index === 3 ? { disruptionChance: 0.4 } : {}),
     })),
     archetypes: [
       { id: 'offensive', name: 'Offensif', reactionIds: ['weaken_lesson', 'combined_attack'] },

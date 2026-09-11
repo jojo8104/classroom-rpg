@@ -5,7 +5,7 @@ export function validateEffects(state) {
         throw new Error('Effets temporaires : liste requise.');
     for (const effect of state.effects) {
         if (!effect.id || ids.has(effect.id) || !effect.sourceId || !effect.abilityId || effect.targetId !== state.studentId ||
-            !['intelligence', 'discipline', 'morale'].includes(effect.stat) ||
+            !['intelligence', 'discipline', 'morale', 'complexityReduction', 'disruptionReduction'].includes(effect.stat) ||
             !Number.isFinite(effect.value) || effect.value <= 0 || effect.value > 100 ||
             !Number.isSafeInteger(effect.remainingRounds) || effect.remainingRounds <= 0) {
             throw new Error('Effet temporaire invalide.');
@@ -18,11 +18,14 @@ export function validateEffects(state) {
 export function effectiveStats(student, state) {
     const result = { ...student, morale: state.morale, concentration: state.concentration };
     for (const stat of ['intelligence', 'discipline', 'morale']) {
-        const bonus = state.effects.reduce((max, effect) => effect.stat === stat && effect.remainingRounds > 0 ? Math.max(max, effect.value) : max, 0);
+        const bonus = effectBonus(state, stat);
         if (bonus > 0)
             result[stat] = roundValue(Math.min(100, result[stat] + bonus));
     }
     return result;
+}
+export function effectBonus(state, stat) {
+    return state.effects.reduce((max, effect) => effect.stat === stat && effect.remainingRounds > 0 ? Math.max(max, effect.value) : max, 0);
 }
 export function applyTemporaryEffect(state, effect, events) {
     validateEffects({ ...state, effects: [effect] });

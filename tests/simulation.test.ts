@@ -63,7 +63,8 @@ describe('Leçon complète', () => {
       expect(new Set(actions.map(e => e.actorId)).size).toBe(9);
       const end = result.events.findIndex(e => e.type === 'ROUND_ENDED' && e.round === round);
       expect(result.events[end + 1]!.type).toBe('TEACHER_INTERVENTION_STARTED');
-      expect(result.events[end + 2]!.type).toBe('TEACHER_INTERVENTION_ENDED');
+      expect(result.events[end + 2]).toMatchObject({ type: 'TEACHER_ACTION_SELECTED', action: { kind: 'PASS' } });
+      expect(result.events[end + 4]!.type).toBe('TEACHER_INTERVENTION_ENDED');
     }
     expect(result.events.at(-1)!.type).toBe('LESSON_ENDED');
     expect(result.events.map(e => e.sequence)).toEqual(result.events.map((_, i) => i + 1));

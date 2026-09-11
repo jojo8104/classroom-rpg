@@ -95,6 +95,9 @@ describe('Protection voisine', () => {
 
   it('départage plusieurs voisins par relation puis siège, indépendamment de l’ordre des données', () => {
     const f = fixture();
+    // Tous les candidats réussissent le check positif : on isole le départage.
+    f.scenario.students.forEach(student => { student.morale = 100; });
+    f.rules.workScale = 0.1;
     f.scenario.students[3]!.archetypeId = 'defensive';
     f.scenario.relations!.push({ studentIds: ['student-1', 'student-4'], value: 90 });
     const first = new Simulation(f.scenario, 42, f.rules).runToCompletion();

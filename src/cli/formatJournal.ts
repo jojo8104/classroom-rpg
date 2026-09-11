@@ -7,6 +7,14 @@ export function formatJournal(scenario: PrototypeScenario, result: SimulationRes
   const lines: string[] = [];
   for (const event of result.events) {
     switch (event.type) {
+      case 'MORALE_CHECK': lines.push(`  ${name(event.studentId)} · ${event.context} · moral ${event.coefficient.toFixed(2)} · check ${event.kind} : ${Math.round(event.chance * 10000) / 100} % · tirage ${event.draw.toFixed(4)} → ${event.success ? 'opportunité' : 'échec'}`); break;
+      case 'REACTION_EVALUATED': lines.push(`  ${name(event.sourceId)} → ${name(event.targetId)} · ${event.abilityId} : ${event.reason} · maîtrise ${event.mastery} / cible ${event.targetMastery}, minimum ${event.minimum} · puissance ×${event.modifier.toFixed(2)}`); break;
+      case 'BEHAVIOR_APPLIED': lines.push(`  ${name(event.studentId)} distrait : efficacité ×${event.multiplier}`); break;
+
+      case 'DISRUPTION_RESOLVED': lines.push(`  ${name(event.sourceId)} perturbe ${name(event.targetId)} : puissance ${event.power}, après autorité ${event.afterAuthority}, concentration perdue ${event.damage}`); break;
+      case 'TEACHER_ACTION_SELECTED': lines.push(`  décision : ${event.action.kind}${'targetId' in event.action ? ` → ${name(event.action.targetId)}` : ''}`); break;
+      case 'TEACHER_ACTION_APPLIED': lines.push(`  ${event.action} appliqué · puissance ${event.power}`); break;
+      case 'TEACHER_PATIENCE_CHANGED': lines.push(`  patience : ${event.before} → ${event.after}`); break;
       case 'REACTION_TRIGGERED': lines.push(event.effect === 'REDUCE_PRESSURE'
         ? `  ${name(event.sourceId)} protège ${name(event.targetId)} : pression ${event.before} → ${event.after} (relation ${event.relation}/100)`
         : event.effect === 'REDUCE_COMPLEXITY'
@@ -35,8 +43,8 @@ export function formatJournal(scenario: PrototypeScenario, result: SimulationRes
       case 'EXTRA_ACTION_CREATED': lines.push(`  action supplémentaire ajoutée : ${name(event.studentId)}`); break;
       case 'ACTION_LIMIT_REACHED': lines.push(`  action refusée : ${name(event.studentId)} (${event.reason})`); break;
       case 'ROUND_ENDED': lines.push('\nRÉSULTAT DU ROUND', ...event.students.map(s => `  ${name(s.studentId)} : ${s.lessonUnderstanding} %`)); break;
-      case 'TEACHER_INTERVENTION_STARTED': lines.push('INTERVENTION DU PROFESSEUR'); break;
-      case 'TEACHER_INTERVENTION_ENDED': lines.push('  aucune intervention'); break;
+      case 'TEACHER_INTERVENTION_STARTED': lines.push('INTERVENTION DU PROFESSEUR', `  pédagogie ${event.teacher.pedagogy} · autorité ${event.teacher.authority} · patience ${event.teacher.patience}/${event.teacher.maxPatience}`, ...event.actions.map(action => `  ${action.kind} : ${action.cost} patience`)); break;
+      case 'TEACHER_INTERVENTION_ENDED': lines.push(event.intervention === 'PASS' || event.intervention === 'none' ? '  aucune intervention' : '  intervention terminée'); break;
       case 'CHAPTER_ENDED': lines.push('FIN DU CHAPITRE'); break;
       case 'LESSON_ENDED': lines.push(`\nLEÇON TERMINÉE — ${scenario.lesson.name}`,
         ...event.results.flatMap(s => [`${name(s.studentId).padEnd(10)} ${s.understanding} % · HP ${s.concentration} · moral ${s.morale}`,
