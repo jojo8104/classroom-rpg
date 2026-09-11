@@ -6,6 +6,7 @@ export function createActionRules() {
         criticalChance: 0.1, criticalMultiplier: 1.5, dropoutMoraleLoss: 8, recovery: 30,
         workVariation: 0.1, supportBonus: 10, extraActionChance: 0.25,
         maxExtraActionsPerStudent: 1, maxActionsPerRound: 36, maxChainDepth: 3,
+        maxReactionsPerStudent: 1,
         supportChanceByArchetype: { offensive: 0.1, defensive: 0.2, support: 0.65 },
     };
 }

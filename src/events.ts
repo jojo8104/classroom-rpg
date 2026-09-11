@@ -1,10 +1,24 @@
-import type { LessonResult, StudentLessonState } from './domain.js';
+import type { LessonResult, ReactionAbility, StudentLessonState, TemporaryEffect } from './domain.js';
 
 export type ActionKind = 'WORK' | 'SUPPORT' | 'RECOVER';
+export type ReactionWindow =
+  | 'BEFORE_STUDENT_ATTACK' | 'DURING_STUDENT_ATTACK' | 'AFTER_STUDENT_ATTACK'
+  | 'BEFORE_LESSON_ATTACK' | 'DURING_LESSON_ATTACK' | 'AFTER_LESSON_ATTACK';
 export type ActionLimitReason = 'maxActionsPerRound' | 'maxExtraActionsPerStudent' | 'maxChainDepth';
+export type ReactionLimitReason = 'maxActionsPerRound' | 'maxChainDepth' | 'maxReactionsPerStudent';
 
 // Les événements conservent les valeurs au moment de l'effet, pas de références mutables.
 export type ActionEvent =
+  | { type: 'REACTION_TRIGGERED'; sourceId: string; targetId: string; abilityId: string;
+      window: ReactionWindow; effect: Exclude<ReactionAbility['effect'], 'COMBINED_ATTACK'>; relation: number; before: number; after: number }
+  | { type: 'COMBINED_ATTACK_STARTED'; sourceId: string; targetId: string; abilityId: string; relation: number }
+  | { type: 'COMBINED_ATTACK_RESOLVED'; sourceId: string; targetId: string;
+      activeGain: number; partnerGain: number; synergyGain: number; potentialGain: number; appliedProgress: number }
+  | { type: 'TEMPORARY_EFFECT_APPLIED'; effect: TemporaryEffect; refreshed: boolean }
+  | { type: 'TEMPORARY_EFFECT_DECREMENTED'; effect: TemporaryEffect }
+  | { type: 'TEMPORARY_EFFECT_EXPIRED'; effect: TemporaryEffect }
+  | { type: 'REACTION_LIMIT_REACHED'; sourceId: string; targetId: string; reason: ReactionLimitReason }
+  | { type: 'REACTION_WINDOW_OPENED'; studentId: string; window: ReactionWindow; extra: boolean }
   | { type: 'LESSON_RETALIATED'; studentId: string; damage: number }
   | { type: 'CONCENTRATION_CHANGED'; studentId: string; before: number; after: number; reason: 'pressure' | 'support' | 'recovery' }
   | { type: 'MORALE_CHANGED'; studentId: string; before: number; after: number }

@@ -8,6 +8,7 @@ describe('Leçon complète', () => {
   it('conserve une lacune du premier chapitre après reprise dans le second', () => {
     const scenario = createPrototype();
     scenario.students = scenario.students.slice(0, 1);
+    scenario.relations = [];
     scenario.students[0]!.concentration = 0;
     scenario.lesson.chapters[0]!.roundCount = 1;
     const rules = createActionRules(); rules.workScale = 100; rules.criticalChance = 0;
@@ -20,6 +21,7 @@ describe('Leçon complète', () => {
   it('prépare une nouvelle leçon avec des HP restaurés et le moral conservé', () => {
     const scenario = createPrototype();
     scenario.students = scenario.students.slice(0, 1);
+    scenario.relations = [];
     scenario.students[0]!.concentration = 1;
     const rules = createActionRules(); rules.criticalChance = 0;
     const result = new Simulation(scenario, 1, rules).runToCompletion();
@@ -27,6 +29,7 @@ describe('Leçon complète', () => {
     expect(result.nextLessonStudents[0]!.morale).toBeLessThan(scenario.students[0]!.morale);
     expect(result.nextLessonStudents[0]!.morale).toBe(result.results[0]!.morale);
     const next = createPrototype(); next.lesson.id = 'another-lesson'; next.students = result.nextLessonStudents;
+    next.relations = [];
     const simulation = new Simulation(next, 1);
     expect(simulation.studentStates[0]!.chapters.every(c => c.progress === 0 && c.missedRounds === 0)).toBe(true);
     expect(simulation.studentStates[0]!.concentration).toBe(100);

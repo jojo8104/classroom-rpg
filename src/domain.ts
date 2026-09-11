@@ -8,11 +8,55 @@ export interface Student {
   morale: number;
   archetypeId: string;
   seatId: string;
+  reactionIds?: string[];
 }
 
 export interface StudentArchetype {
   id: string;
   name: string;
+  reactionIds?: string[];
+}
+
+// Relations réciproques fixes : une seule entrée par paire, échelle 0–100.
+export interface StudentRelation {
+  studentIds: [string, string];
+  value: number;
+}
+
+interface ReactionAbilityBase {
+  id: string;
+  window: import('./events.js').ReactionWindow;
+  minRelation: number;
+}
+
+export type ReactionAbility = ReactionAbilityBase & ({
+  effect: 'REDUCE_PRESSURE';
+  reduction: number;
+  maxReduction: number;
+} | {
+  effect: 'REDUCE_COMPLEXITY';
+  reduction: number;
+  maxReduction: number;
+} | {
+  effect: 'APPLY_TEMPORARY_EFFECT';
+  stat: TemporaryStat;
+  value: number;
+  durationInRounds: number;
+} | {
+  effect: 'COMBINED_ATTACK';
+  synergy: number;
+});
+
+export type TemporaryStat = 'intelligence' | 'discipline' | 'morale';
+
+export interface TemporaryEffect {
+  id: string;
+  abilityId: string;
+  sourceId: string;
+  targetId: string;
+  stat: TemporaryStat;
+  value: number;
+  remainingRounds: number;
 }
 
 export interface Teacher {
@@ -69,6 +113,7 @@ export interface Lesson {
 }
 
 export interface StudentLessonState {
+  effects: TemporaryEffect[];
   studentId: string;
   lessonUnderstanding: number;
   concentration: number;
@@ -92,6 +137,8 @@ export interface LessonResult {
 }
 
 export interface PrototypeScenario {
+  relations?: StudentRelation[];
+  reactionAbilities?: ReactionAbility[];
   teacher: Teacher;
   classroom: Classroom;
   students: Student[];

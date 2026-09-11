@@ -57,7 +57,8 @@ export class Simulation {
         this.round++;
         this.roundInChapter++;
         this.emit({ type: 'ROUND_STARTED' });
-        const result = resolveActionRound(this.scenario.students, this.students, this.random, this.rules, this.scenario.lesson, this.scenario.lesson.chapters[this.chapterIndex].id);
+        const result = resolveActionRound(this.scenario.students, this.students, this.random, this.rules, this.scenario.lesson, this.scenario.lesson.chapters[this.chapterIndex].id, { classroom: this.scenario.classroom, archetypes: this.scenario.archetypes,
+            relations: this.scenario.relations ?? [], abilities: this.scenario.reactionAbilities ?? [] });
         this.students = result.students;
         for (const event of result.events)
             this.emit(event);

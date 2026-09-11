@@ -1,6 +1,9 @@
 import { createPrototype } from '../data/prototype.js';
 import { Simulation } from '../engine/simulation.js';
 import type { GameEvent } from '../events.js';
+import { areAdjacent, relationBetween } from '../engine/reactions.js';
+import { createActionRules } from '../data/rules.js';
+import { effectiveStats } from '../engine/effects.js';
 
 const scenario = createPrototype();
 let simulation = new Simulation(scenario, 12345);
@@ -8,6 +11,8 @@ let selected = scenario.students[0]!.id;
 let shown = new Map(scenario.students.map(s => [s.id, 0]));
 let shownStates = new Map(simulation.studentStates.map(s => [s.studentId, s]));
 let busy = false;
+const reactionsUsed = new Map<string, number>();
+const statNames = { intelligence: 'Intelligence', discipline: 'Discipline', morale: 'Moral' };
 const el = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const advance = el<HTMLButtonElement>('advance');
 const seed = el<HTMLInputElement>('seed');
@@ -32,6 +37,39 @@ function renderStudents() {
   const role = scenario.archetypes.find(a => a.id === student.archetypeId)!.name;
   const state = shownStates.get(selected)!;
   el('student-detail').innerHTML = `<h2>${student.name}</h2><span class="role ${student.archetypeId}">${role}</span><div class="understanding">${shown.get(selected)} %</div><p>Compréhension de la leçon</p><dl>${[['Intelligence',student.intelligence],['Discipline',student.discipline],['Concentration (HP)',state.concentration],['Moral',state.morale]].map(([name,value]) => `<div><dt>${name}</dt><dd>${value}</dd></div>`).join('')}</dl><h3>Acquis par chapitre</h3>${state.chapters.map(c => `<p>${scenario.lesson.chapters.find(d => d.id === c.chapterId)!.name} : ${c.progress} / ${scenario.lesson.requiredProgress / scenario.lesson.chapters.length}<br><small>${c.missedRounds} étape(s) manquée(s)</small></p>`).join('')}`;
+  const reactionIds = student.reactionIds ?? scenario.archetypes.find(archetype => archetype.id === student.archetypeId)?.reactionIds ?? [];
+  const abilities = scenario.reactionAbilities?.filter(ability => reactionIds.includes(ability.id)) ?? [];
+  if (abilities.length) {
+    const info = document.createElement('p');
+    info.textContent = `Réactions : ${reactionsUsed.get(selected) ?? 0} / ${createActionRules().maxReactionsPerStudent} utilisée ce round. Un élève décroché ou au repos ne réagit pas.`;
+    el('student-detail').append(info);
+    for (const ability of abilities) {
+      const description = document.createElement('p');
+      const timing = ability.window === 'BEFORE_STUDENT_ATTACK' ? 'avant l’attaque' : ability.window === 'DURING_STUDENT_ATTACK' ? 'pendant l’attaque' : 'après une progression réussie';
+      switch (ability.effect) {
+        case 'REDUCE_PRESSURE': description.textContent = `Protège un voisin contre la riposte · relation ≥ ${ability.minRelation}/100.`; break;
+        case 'REDUCE_COMPLEXITY': description.textContent = `Affaiblit la complexité pour l’attaque d’un voisin · relation ≥ ${ability.minRelation}/100.`; break;
+        case 'COMBINED_ATTACK': description.textContent = `Attaque combinée avec un voisin · relation ≥ ${ability.minRelation}/100. Remplace l’affaiblissement simple ; le camarade reçoit la progression.`; break;
+        case 'APPLY_TEMPORARY_EFFECT': description.textContent = `${statNames[ability.stat]} + : ${timing}, pendant ${ability.durationInRounds} rounds (round actuel inclus) · relation ≥ ${ability.minRelation}/100.`; break;
+      }
+      el('student-detail').append(description);
+    }
+  }
+  if (state.effects.length) {
+    const heading = document.createElement('h3'); heading.textContent = 'Bonus actifs';
+    el('student-detail').append(heading);
+    const effective = effectiveStats(student, state);
+    for (const effect of state.effects) {
+      const info = document.createElement('p');
+      info.textContent = `${statNames[effect.stat]} +${effect.value} · ${studentName(effect.sourceId)} · ${effect.remainingRounds} round(s) restant(s). Valeur effective : ${effective[effect.stat]} / 100.`;
+      el('student-detail').append(info);
+    }
+  }
+  const relations = document.createElement('p');
+  relations.textContent = 'Relations avec les voisins : ' + scenario.students
+    .filter(other => areAdjacent(student, other, scenario.classroom))
+    .map(other => `${other.name} ${relationBetween(student.id, other.id, scenario.relations ?? [])}/100`).join(' · ');
+  el('student-detail').append(relations);
 }
 for (const student of scenario.students) {
   const seat = scenario.classroom.seats.find(s => s.id === student.seatId)!;
@@ -80,7 +118,45 @@ function feedback(studentId: string, text: string) {
 }
 async function showEvents(events: GameEvent[]) {
   for (const event of events) {
-    if (event.type === 'STUDENT_ACTION') {
+    if (event.type === 'ROUND_STARTED') {
+      reactionsUsed.clear(); renderStudents();
+    } else if (event.type === 'TEMPORARY_EFFECT_APPLIED') {
+      const state = shownStates.get(event.effect.targetId)!;
+      state.effects = state.effects.filter(effect => effect.id !== event.effect.id);
+      state.effects.push(structuredClone(event.effect)); renderStudents();
+      if (event.refreshed) note(`${studentName(event.effect.targetId)} : bonus de ${statNames[event.effect.stat].toLowerCase()} renouvelé pour ${event.effect.remainingRounds} rounds, round actuel inclus.`);
+    } else if (event.type === 'TEMPORARY_EFFECT_DECREMENTED') {
+      const effect = shownStates.get(event.effect.targetId)!.effects.find(effect => effect.id === event.effect.id);
+      if (effect) effect.remainingRounds = event.effect.remainingRounds;
+      renderStudents();
+    } else if (event.type === 'TEMPORARY_EFFECT_EXPIRED') {
+      const state = shownStates.get(event.effect.targetId)!;
+      state.effects = state.effects.filter(effect => effect.id !== event.effect.id);
+      note(`${studentName(event.effect.targetId)} : bonus de ${statNames[event.effect.stat].toLowerCase()} expiré.`);
+      renderStudents();
+    } else if (event.type === 'REACTION_TRIGGERED') {
+      reactionsUsed.set(event.sourceId, (reactionsUsed.get(event.sourceId) ?? 0) + 1);
+      el(event.sourceId).classList.add('receiving');
+      const ability = scenario.reactionAbilities?.find(ability => ability.id === event.abilityId);
+      const label = ability?.effect === 'APPLY_TEMPORARY_EFFECT' ? statNames[ability.stat] : event.effect === 'REDUCE_COMPLEXITY' ? 'Complexité' : 'Pression';
+      const verb = event.effect === 'REDUCE_PRESSURE' ? 'protège' : 'soutient';
+      feedback(event.sourceId, `${verb} ${studentName(event.targetId)}`);
+      feedback(event.targetId, `${label} ${event.before} → ${event.after}`);
+      el('status').textContent = `${studentName(event.sourceId)} ${verb} ${studentName(event.targetId)} : ${label.toLowerCase()} ${event.before} → ${event.after}.`;
+      if (event.effect === 'REDUCE_COMPLEXITY') el('status').textContent = `${studentName(event.sourceId)} affaiblit la leçon pour ${studentName(event.targetId)} : complexité ${event.before} → ${event.after}, pour cette attaque.`;
+      note(el('status').textContent!);
+      renderStudents();
+    } else if (event.type === 'COMBINED_ATTACK_STARTED') {
+      reactionsUsed.set(event.sourceId, (reactionsUsed.get(event.sourceId) ?? 0) + 1);
+      el(event.sourceId).classList.add('receiving');
+      feedback(event.sourceId, `Combo avec ${studentName(event.targetId)}`);
+      feedback(event.targetId, 'Attaque combinée');
+      el('status').textContent = `${studentName(event.targetId)} et ${studentName(event.sourceId)} attaquent ensemble !`;
+      note(el('status').textContent!); renderStudents();
+    } else if (event.type === 'COMBINED_ATTACK_RESOLVED') {
+      feedback(event.targetId, `Combo : +${event.appliedProgress} points`);
+      note(`Combo : ${event.activeGain} + ${event.partnerGain} + ${event.synergyGain} de synergie. ${studentName(event.targetId)} gagne ${event.appliedProgress} points de chapitre (potentiel ${event.potentialGain}).`);
+    } else if (event.type === 'STUDENT_ACTION') {
       clearActionFeedback();
       el(event.actorId).classList.add('active');
       if (event.actionId === 'SUPPORT') {
@@ -129,9 +205,9 @@ async function showEvents(events: GameEvent[]) {
       shown = new Map(event.students.map(s => [s.studentId, s.lessonUnderstanding])); renderStudents();
       el<HTMLProgressElement>('lesson-progress').value = event.round;
     }
-    if (event.type === 'UNDERSTANDING_CHANGED' || event.type === 'EFFECT_APPLIED' || event.type === 'EXTRA_ACTION_CREATED' || event.type === 'CONCENTRATION_CHANGED' && event.reason !== 'support' || event.type === 'STUDENT_DROPPED_OUT') {
+    if (event.type === 'COMBINED_ATTACK_STARTED' || event.type === 'COMBINED_ATTACK_RESOLVED' || event.type === 'REACTION_TRIGGERED' || event.type === 'UNDERSTANDING_CHANGED' || event.type === 'EFFECT_APPLIED' || event.type === 'EXTRA_ACTION_CREATED' || event.type === 'CONCENTRATION_CHANGED' && event.reason !== 'support' || event.type === 'STUDENT_DROPPED_OUT') {
       // Conserver le temps de lecture même lorsque les mouvements sont désactivés.
-      await new Promise(resolve => setTimeout(resolve, event.type === 'EFFECT_APPLIED' ? 1100 : 650));
+      await new Promise(resolve => setTimeout(resolve, event.type === 'COMBINED_ATTACK_STARTED' || event.type === 'REACTION_TRIGGERED' || event.type === 'EFFECT_APPLIED' ? 1100 : 650));
     }
   }
   clearActionFeedback();
@@ -159,6 +235,7 @@ advance.addEventListener('click', () => { void advanceLesson(); });
 restart.addEventListener('submit', event => {
   event.preventDefault(); if (busy || !restart.reportValidity()) return;
   simulation = new Simulation(scenario, Number(seed.value));
+  reactionsUsed.clear();
   shownStates = new Map(simulation.studentStates.map(s => [s.studentId,s]));
   shown = new Map(scenario.students.map(s => [s.id, 0]));
   log.replaceChildren(); note('Une nouvelle leçon commence.');

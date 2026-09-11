@@ -1,8 +1,11 @@
 import { statBounds } from '../data/rules.js';
+import { validateReactionSetup } from './reactions.js';
 // Retourner toutes les erreurs permet de corriger un scénario en une seule passe.
 export function validateScenario(scenario) {
     const errors = [];
     const { classroom, students, lesson } = scenario;
+    errors.push(...validateReactionSetup(students, { classroom, archetypes: scenario.archetypes,
+        relations: scenario.relations ?? [], abilities: scenario.reactionAbilities ?? [] }));
     function uniqueIds(items, label) {
         const ids = new Set();
         for (const item of items) {

@@ -1,12 +1,21 @@
 import { statBounds } from '../data/rules.js';
-import { chapterCapacity, pressureDamage, roundValue, workGain } from './combat.js';
+import { chapterCapacity, roundValue } from './combat.js';
+import { resolveWorkTurn } from './turn.js';
+import { endRoundEffects, validateEffects } from './effects.js';
+import { resolveReactionWindow, validateReactionSetup } from './reactions.js';
 // Une instance par round. Le budget compte toutes les actions acceptées, même déjà sorties.
 export class ActionQueue {
+    maxReactionsPerStudent;
     pending = [];
+    reactions = [];
+    reactionCounts = new Map();
     accepted = 0;
     extras = new Map();
     limits;
-    constructor(limits) {
+    constructor(limits, maxReactionsPerStudent = 1) {
+        this.maxReactionsPerStudent = maxReactionsPerStudent;
+        if (!Number.isSafeInteger(maxReactionsPerStudent) || maxReactionsPerStudent < 0)
+            throw new Error('Limite de réaction invalide.');
         for (const value of [limits.maxActionsPerRound, limits.maxExtraActionsPerStudent, limits.maxChainDepth]) {
             if (!Number.isSafeInteger(value) || value < 0)
                 throw new Error('Limite de file invalide.');
@@ -32,9 +41,28 @@ export class ActionQueue {
     dequeue() {
         return this.pending.shift();
     }
+    // Même budget total, voie dédiée vidée avant la reprise du tour suspendu.
+    enqueueReaction(reaction) {
+        if (!Number.isSafeInteger(reaction.depth) || reaction.depth < 1)
+            throw new Error('Profondeur de réaction invalide.');
+        if (reaction.depth > this.limits.maxChainDepth)
+            return 'maxChainDepth';
+        if (this.accepted >= this.limits.maxActionsPerRound)
+            return 'maxActionsPerRound';
+        const count = this.reactionCounts.get(reaction.actorId) ?? 0;
+        if (count >= this.maxReactionsPerStudent)
+            return 'maxReactionsPerStudent';
+        this.reactions.push(structuredClone(reaction));
+        this.reactionCounts.set(reaction.actorId, count + 1);
+        this.accepted++;
+        return undefined;
+    }
+    dequeueReaction() {
+        return this.reactions.shift();
+    }
 }
 export function validateActionRules(rules, studentCount) {
-    for (const value of [rules.maxActionsPerRound, rules.maxExtraActionsPerStudent, rules.maxChainDepth]) {
+    for (const value of [rules.maxActionsPerRound, rules.maxExtraActionsPerStudent, rules.maxChainDepth, rules.maxReactionsPerStudent]) {
         if (!Number.isSafeInteger(value) || value < 0)
             throw new Error('Limite de file invalide.');
     }
@@ -55,15 +83,20 @@ export function validateActionRules(rules, studentCount) {
         throw new Error('Le budget doit permettre toutes les actions principales.');
 }
 // Les états sont copiés en profondeur : les acquis des chapitres passés sont conservés.
-export function resolveActionRound(students, initialStates, random, rules, lesson, chapterId) {
+export function resolveActionRound(students, initialStates, random, rules, lesson, chapterId, reactionSetup) {
     validateActionRules(rules, students.length);
+    if (reactionSetup) {
+        const errors = validateReactionSetup(students, reactionSetup);
+        if (errors.length)
+            throw new Error(errors.join('\n'));
+    }
     if (!lesson.chapters.some(chapter => chapter.id === chapterId))
         throw new Error('Chapitre inconnu.');
     if (!Number.isFinite(lesson.requiredProgress) || lesson.requiredProgress <= 0 ||
         !Number.isFinite(lesson.complexity) || lesson.complexity < 0 || lesson.complexity > 100 ||
         !Number.isFinite(lesson.pressure) || lesson.pressure < 0 || lesson.pressure > 100)
         throw new Error('Leçon invalide.');
-    const queue = new ActionQueue(rules);
+    const queue = new ActionQueue(rules, rules.maxReactionsPerStudent);
     const byId = new Map(students.map(student => [student.id, student]));
     const states = new Map(initialStates.map(state => [state.studentId, structuredClone(state)]));
     if (byId.size !== students.length || states.size !== initialStates.length || states.size !== byId.size) {
@@ -74,6 +107,7 @@ export function resolveActionRound(students, initialStates, random, rules, lesso
         const state = states.get(student.id);
         if (!state)
             throw new Error('État de séance invalide.');
+        validateEffects(state);
         for (const value of [state.lessonUnderstanding, state.concentration, state.morale, student.intelligence, student.discipline]) {
             if (!Number.isFinite(value) || value < statBounds.min || value > statBounds.max)
                 throw new Error('Statistique invalide.');
@@ -128,22 +162,18 @@ export function resolveActionRound(students, initialStates, random, rules, lesso
         }
         if (action.kind === 'WORK') {
             events.push({ type: 'STUDENT_ACTION', actorId: student.id, actionId: 'WORK', targetId: student.id, extra: action.depth > 0 });
-            if (chapter.progress >= capacity)
-                continue;
-            const critical = random.next() < rules.criticalChance;
-            const gain = workGain(student, state.morale, lesson, rules, random.next()) * (critical ? rules.criticalMultiplier : 1);
-            if (critical)
-                events.push({ type: 'CRITICAL_HIT', studentId: student.id });
-            const before = state.lessonUnderstanding;
-            chapter.progress = Math.min(capacity, roundValue(chapter.progress + gain));
-            state.lessonUnderstanding = roundValue(Math.min(100, 100 * state.chapters.reduce((sum, c) => sum + c.progress, 0) / lesson.requiredProgress));
-            events.push({ type: 'CHAPTER_PROGRESS_CHANGED', studentId: student.id, ...chapter });
-            events.push({ type: 'UNDERSTANDING_CHANGED', studentId: student.id, before, after: state.lessonUnderstanding, amount: roundValue(state.lessonUnderstanding - before) });
-            // Un critique ou la complétion du chapitre évite sa riposte.
-            if (!critical && chapter.progress < capacity) {
-                const damage = Math.min(state.concentration, pressureDamage(student, state.morale, lesson, rules));
-                events.push({ type: 'LESSON_RETALIATED', studentId: student.id, damage });
-                changeConcentration(state, state.concentration - damage, 'pressure');
+            // La réaction modifie uniquement la leçon effective de cette action.
+            const effectiveLesson = { ...lesson };
+            const understandingBefore = state.lessonUnderstanding;
+            const resolvedEffects = new Set();
+            const modifiers = {};
+            const turn = resolveWorkTurn({ student, state, lesson: effectiveLesson, chapterId, rules, random, events, changeConcentration, modifiers });
+            for (const window of turn) {
+                events.push({ type: 'REACTION_WINDOW_OPENED', studentId: student.id, window, extra: action.depth > 0 });
+                if (reactionSetup)
+                    resolveReactionWindow({ window, target: student, students, states,
+                        resting, setup: reactionSetup, lesson: effectiveLesson, rules, queue, depth: action.depth + 1, events, resolvedEffects,
+                        attackSucceeded: state.lessonUnderstanding > understandingBefore, modifiers });
             }
         }
         else {
@@ -165,5 +195,6 @@ export function resolveActionRound(students, initialStates, random, rules, lesso
             }
         }
     }
+    endRoundEffects(states.values(), events);
     return { students: students.map(student => states.get(student.id)), events };
 }
