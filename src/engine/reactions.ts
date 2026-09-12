@@ -1,3 +1,4 @@
+import { validateLearningRules, type LearningRules } from '../data/learningRules.js';
 import { validateInteractionRules, type InteractionRules } from '../data/interactionRules.js';
 import { chapterMastery, checkMorale, masteryAccess } from './interactions.js';
 import type { SeededRandom } from './random.js';
@@ -10,6 +11,7 @@ import { applyTemporaryEffect, effectiveStats } from './effects.js';
 import type { AttackModifiers } from './turn.js';
 
 export interface ReactionSetup {
+  learningRules?: LearningRules | undefined;
   interactionRules?: InteractionRules | undefined;
   classroom: Classroom;
   archetypes: readonly StudentArchetype[];
@@ -28,6 +30,7 @@ export interface QueuedReaction {
 
 export function validateReactionSetup(students: readonly Student[], setup: ReactionSetup): string[] {
   const errors: string[] = [];
+  if (setup.learningRules) { try { validateLearningRules(setup.learningRules); } catch (error) { errors.push((error as Error).message); } }
   if (setup.interactionRules) {
     try { validateInteractionRules(setup.interactionRules); } catch (error) { errors.push((error as Error).message); }
   }

@@ -1,3 +1,5 @@
+import type { LearningRules } from '../data/learningRules.js';
+import { changeMorale } from './resources.js';
 import type { Lesson, Student, StudentLessonState } from '../domain.js';
 import type { ActionRules } from '../data/rules.js';
 import type { ActionEvent, ReactionWindow } from '../events.js';
@@ -6,6 +8,7 @@ import type { SeededRandom } from './random.js';
 import { effectiveStats } from './effects.js';
 
 export interface WorkTurnContext {
+  learningRules?: LearningRules | undefined;
   modifiers?: AttackModifiers;
   student: Student;
   state: StudentLessonState;
@@ -14,7 +17,7 @@ export interface WorkTurnContext {
   rules: ActionRules;
   random: SeededRandom;
   events: ActionEvent[];
-  changeConcentration: (state: StudentLessonState, value: number, reason: 'pressure') => void;
+  changeConcentration: (state: StudentLessonState, value: number, reason: 'pressure' | 'effort') => void;
 }
 
 export interface AttackModifiers {
@@ -38,6 +41,10 @@ function resolveRetaliation(context: WorkTurnContext): void {
   const damage = Math.min(state.concentration, pressureDamage(effective, effective.morale, lesson, rules));
   events.push({ type: 'LESSON_RETALIATED', studentId: student.id, damage });
   context.changeConcentration(state, state.concentration - damage, 'pressure');
+  if (context.learningRules && damage > 0) {
+    const loss = roundValue(Math.min(context.learningRules.maxRetaliationMoraleLoss, damage * context.learningRules.damageMoraleRatio));
+    if (loss > 0) changeMorale(state, state.morale - loss, events, 'retaliation');
+  }
 }
 
 // Chaque yield suspend réellement le tour. L'appelant pourra résoudre les réactions
@@ -55,6 +62,7 @@ export function* resolveWorkTurn(context: WorkTurnContext): Generator<ReactionWi
   const multiplier = critical ? rules.criticalMultiplier : 1;
   const gain = workGain(effective, effective.morale, lesson, rules, variation) * multiplier;
   if (critical) events.push({ type: 'CRITICAL_HIT', studentId: student.id });
+  const progressBefore = chapter.progress;
   const combination = context.modifiers?.combined;
   if (combination) {
     // Les deux contributions utilisent le même tirage et la même complexité.
@@ -66,10 +74,16 @@ export function* resolveWorkTurn(context: WorkTurnContext): Generator<ReactionWi
     events.push({ type: 'COMBINED_ATTACK_RESOLVED', sourceId: partner.id, targetId: student.id,
       ...result, appliedProgress: roundValue(chapter.progress - before) });
   } else resolveProgress(context, gain);
+  if (context.learningRules) {
+    if (chapter.progress > progressBefore && context.learningRules.successMorale > 0)
+      changeMorale(state, state.morale + context.learningRules.successMorale, events, 'success');
+    if (context.learningRules.effortConcentration > 0)
+      context.changeConcentration(state, state.concentration - context.learningRules.effortConcentration, 'effort');
+  }
   yield 'AFTER_STUDENT_ATTACK';
 
   // Les exemptions de riposte de Roadmap 1.1 restent prioritaires.
-  if (critical || chapter.progress >= chapterCapacity(lesson)) return;
+  if (state.concentration <= 0 || critical || chapter.progress >= chapterCapacity(lesson)) return;
   yield 'BEFORE_LESSON_ATTACK';
   yield 'DURING_LESSON_ATTACK';
   resolveRetaliation(context);

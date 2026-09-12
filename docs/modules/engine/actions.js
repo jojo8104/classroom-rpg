@@ -189,7 +189,7 @@ export function resolveActionRound(students, initialStates, random, rules, lesso
             const understandingBefore = state.lessonUnderstanding;
             const resolvedEffects = new Set();
             const modifiers = {};
-            const turn = resolveWorkTurn({ student, state, lesson: effectiveLesson, chapterId, rules: turnRules, random, events, changeConcentration, modifiers });
+            const turn = resolveWorkTurn({ learningRules: reactionSetup?.learningRules, student, state, lesson: effectiveLesson, chapterId, rules: turnRules, random, events, changeConcentration, modifiers });
             for (const window of turn) {
                 events.push({ type: 'REACTION_WINDOW_OPENED', studentId: student.id, window, extra: action.depth > 0 });
                 if (reactionSetup)

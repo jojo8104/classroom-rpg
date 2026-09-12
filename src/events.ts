@@ -1,7 +1,7 @@
 import type { LessonResult, ReactionAbility, StudentLessonState, TeacherAction, TeacherActionKind, TeacherState, TemporaryEffect } from './domain.js';
 
 export type ActionKind = 'WORK' | 'SUPPORT' | 'RECOVER' | 'DISRUPT';
-export type ConcentrationReason = 'pressure' | 'support' | 'recovery' | 'disruption' | 'teacher';
+export type ConcentrationReason = 'effort' | 'pressure' | 'support' | 'recovery' | 'disruption' | 'teacher';
 export type ReactionWindow =
   | 'BEFORE_STUDENT_ATTACK' | 'DURING_STUDENT_ATTACK' | 'AFTER_STUDENT_ATTACK'
   | 'BEFORE_LESSON_ATTACK' | 'DURING_LESSON_ATTACK' | 'AFTER_LESSON_ATTACK';
@@ -29,7 +29,7 @@ export type ActionEvent =
   | { type: 'REACTION_WINDOW_OPENED'; studentId: string; window: ReactionWindow; extra: boolean }
   | { type: 'LESSON_RETALIATED'; studentId: string; damage: number }
   | { type: 'CONCENTRATION_CHANGED'; studentId: string; before: number; after: number; reason: ConcentrationReason }
-  | { type: 'MORALE_CHANGED'; studentId: string; before: number; after: number }
+  | { type: 'MORALE_CHANGED'; reason?: 'success' | 'retaliation' | 'dropout'; studentId: string; before: number; after: number }
   | { type: 'STUDENT_DROPPED_OUT'; studentId: string }
   | { type: 'STUDENT_RESUMED'; studentId: string }
   | { type: 'CRITICAL_HIT'; studentId: string }

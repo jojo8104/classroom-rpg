@@ -257,3 +257,37 @@ d'éligibilité. « eligible » désigne un candidat, pas une réaction garantie
 et les priorités décident ensuite. La fiche élève affiche maîtrise, chances et dernier
 refus. Les nouvelles consommations de RNG changent les résultats des anciennes seeds ;
 à configuration, seed et décisions identiques, le résultat reste reproductible.
+
+## Réussite, effort et moral
+
+Le scénario active `learningRules`, configurables dans `src/data/learningRules.ts`.
+Chaque travail sur un chapitre incomplet coûte 1 concentration, même sans progrès.
+Une progression réelle rapporte 1 moral, une seule fois par travail, combo compris.
+Les actions de travail supplémentaires suivent les mêmes règles. Le partenaire du
+combo ne paie pas l'effort du tour d'un autre élève. Un chapitre déjà acquis ne coûte rien.
+
+Ordre : calcul du gain, progression, récompense de moral, effort, réactions après
+attaque, puis riposte éventuelle. Le nouveau moral sert donc aux prochaines réactions
+et à la défense personnelle. Les critiques et la complétion évitent toujours la riposte,
+mais pas l'effort. Si l'effort épuise la concentration, le décrochage habituel se produit
+une seule fois et la riposte est supprimée.
+
+Une riposte retire `min(1, dégâts effectivement reçus × 0.05)` de moral. Les protections
+réduisent cette perte ; zéro dégât n'en produit aucune. La pénalité de décrochage de
+8 moral reste distincte et peut s'ajouter si la riposte épuise la concentration.
+Tous les montants sont bornés, arrondis à deux décimales et peuvent être mis à zéro.
+Le journal distingue réussite, effort, riposte et décrochage. Les scénarios sans
+`learningRules` conservent les règles précédentes pour isoler les mécanismes existants.
+
+## Lecture du bilan avant intervention
+
+Le bilan signale les décrochages, le moral à 40 ou moins, les pertes nettes de
+concentration d'au moins 25, les réserves de concentration à 25 ou moins et les progrès inférieurs à 5 points de compréhension
+sur un chapitre encore incomplet. Ces seuils de présentation sont regroupés dans
+`src/ui/roundSummary.ts` et ne modifient pas la simulation. Il affiche aussi la plus
+forte progression et, pour chaque élève, les aides, protections et combos utiles
+reçus ainsi que les dégâts de perturbation. Un nom cliquable sélectionne l'élève
+dans le formulaire du professeur sans appliquer d'intervention. Les résultats
+restent ceux de la fin du round, même après un encouragement ou une pause.
+
+Le compte rendu des critères et du parcours complet est dans [VALIDATION_ROADMAP2.md](VALIDATION_ROADMAP2.md).

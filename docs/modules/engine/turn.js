@@ -1,3 +1,4 @@
+import { changeMorale } from './resources.js';
 import { chapterCapacity, combinedGain, pressureDamage, roundValue, workGain } from './combat.js';
 import { effectiveStats } from './effects.js';
 function resolveProgress(context, gain) {
@@ -16,6 +17,11 @@ function resolveRetaliation(context) {
     const damage = Math.min(state.concentration, pressureDamage(effective, effective.morale, lesson, rules));
     events.push({ type: 'LESSON_RETALIATED', studentId: student.id, damage });
     context.changeConcentration(state, state.concentration - damage, 'pressure');
+    if (context.learningRules && damage > 0) {
+        const loss = roundValue(Math.min(context.learningRules.maxRetaliationMoraleLoss, damage * context.learningRules.damageMoraleRatio));
+        if (loss > 0)
+            changeMorale(state, state.morale - loss, events, 'retaliation');
+    }
 }
 // Chaque yield suspend réellement le tour. L'appelant pourra résoudre les réactions
 // bornées de cette fenêtre avant de demander l'étape suivante, sans récursion.
@@ -33,6 +39,7 @@ export function* resolveWorkTurn(context) {
     const gain = workGain(effective, effective.morale, lesson, rules, variation) * multiplier;
     if (critical)
         events.push({ type: 'CRITICAL_HIT', studentId: student.id });
+    const progressBefore = chapter.progress;
     const combination = context.modifiers?.combined;
     if (combination) {
         // Les deux contributions utilisent le même tirage et la même complexité.
@@ -46,9 +53,15 @@ export function* resolveWorkTurn(context) {
     }
     else
         resolveProgress(context, gain);
+    if (context.learningRules) {
+        if (chapter.progress > progressBefore && context.learningRules.successMorale > 0)
+            changeMorale(state, state.morale + context.learningRules.successMorale, events, 'success');
+        if (context.learningRules.effortConcentration > 0)
+            context.changeConcentration(state, state.concentration - context.learningRules.effortConcentration, 'effort');
+    }
     yield 'AFTER_STUDENT_ATTACK';
     // Les exemptions de riposte de Roadmap 1.1 restent prioritaires.
-    if (critical || chapter.progress >= chapterCapacity(lesson))
+    if (state.concentration <= 0 || critical || chapter.progress >= chapterCapacity(lesson))
         return;
     yield 'BEFORE_LESSON_ATTACK';
     yield 'DURING_LESSON_ATTACK';

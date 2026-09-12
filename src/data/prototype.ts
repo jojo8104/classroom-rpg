@@ -1,3 +1,4 @@
+import { createLearningRules } from './learningRules.js';
 import { createInteractionRules } from './interactionRules.js';
 import type { PrototypeScenario } from '../domain.js';
 
@@ -7,6 +8,7 @@ export function createPrototype(): PrototypeScenario {
   const archetypeIds = ['offensive', 'defensive', 'support'];
   return {
     interactionRules: createInteractionRules(),
+    learningRules: createLearningRules(),
     relations: [
       { studentIds: ['student-1', 'student-2'], value: 85 },
       { studentIds: ['student-2', 'student-3'], value: 25 },

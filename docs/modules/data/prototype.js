@@ -1,3 +1,4 @@
+import { createLearningRules } from './learningRules.js';
 import { createInteractionRules } from './interactionRules.js';
 // Une nouvelle instance à chaque appel évite de partager un état mutable entre tests.
 export function createPrototype() {
@@ -5,6 +6,7 @@ export function createPrototype() {
     const archetypeIds = ['offensive', 'defensive', 'support'];
     return {
         interactionRules: createInteractionRules(),
+        learningRules: createLearningRules(),
         relations: [
             { studentIds: ['student-1', 'student-2'], value: 85 },
             { studentIds: ['student-2', 'student-3'], value: 25 },

@@ -4,7 +4,7 @@ import { validateReactionSetup } from './reactions.js';
 export function validateScenario(scenario) {
     const errors = [];
     const { classroom, students, lesson } = scenario;
-    errors.push(...validateReactionSetup(students, { interactionRules: scenario.interactionRules, classroom, archetypes: scenario.archetypes,
+    errors.push(...validateReactionSetup(students, { learningRules: scenario.learningRules, interactionRules: scenario.interactionRules, classroom, archetypes: scenario.archetypes,
         relations: scenario.relations ?? [], abilities: scenario.reactionAbilities ?? [] }));
     function uniqueIds(items, label) {
         const ids = new Set();

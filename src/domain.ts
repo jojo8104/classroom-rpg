@@ -146,6 +146,7 @@ export interface LessonResult {
 }
 
 export interface PrototypeScenario {
+  learningRules?: import('./data/learningRules.js').LearningRules;
   interactionRules?: import('./data/interactionRules.js').InteractionRules;
   relations?: StudentRelation[];
   reactionAbilities?: ReactionAbility[];

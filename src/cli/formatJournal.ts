@@ -30,7 +30,7 @@ export function formatJournal(scenario: PrototypeScenario, result: SimulationRes
       case 'LESSON_STARTED': lines.push(`LEÇON : ${scenario.lesson.name}`, `Seed : ${event.seed}`); break;
       case 'LESSON_RETALIATED': lines.push(`  pression → ${name(event.studentId)} : dégâts ${event.damage}`); break;
       case 'CONCENTRATION_CHANGED': lines.push(`  concentration : ${event.before} → ${event.after} (${event.reason})`); break;
-      case 'MORALE_CHANGED': lines.push(`  moral : ${event.before} → ${event.after}`); break;
+      case 'MORALE_CHANGED': lines.push(`  moral : ${event.before} → ${event.after}${event.reason ? ` (${event.reason})` : ''}`); break;
       case 'STUDENT_DROPPED_OUT': lines.push(`  ${name(event.studentId)} décroche`); break;
       case 'STUDENT_RESUMED': lines.push(`  ${name(event.studentId)} peut reprendre`); break;
       case 'CRITICAL_HIT': lines.push('  critique : pas de riposte'); break;

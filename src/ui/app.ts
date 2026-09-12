@@ -1,3 +1,4 @@
+import { summarizeRound } from './roundSummary.js';
 import { chapterMastery, masteryRequirement, moraleChances } from '../engine/interactions.js';
 import { moraleMultiplier } from '../engine/combat.js';
 import { createPrototype } from '../data/prototype.js';
@@ -164,16 +165,42 @@ function syncControls() {
 }
 function renderRoundResult(before: StudentLessonState[], events: GameEvent[]) {
   const delta = (value: number) => `${value > 0 ? '+' : ''}${Math.round(value * 100) / 100}`;
+  const states = simulation.studentStates;
+  const summary = summarizeRound(before, states, events, scenario.lesson, activeChapterId);
+  const selectStudent = (id: string) => { selected = id; renderStudents(); renderTeacher(); };
+  const nameButton = (id: string) => {
+    const button = document.createElement('button'); button.type = 'button'; button.textContent = studentName(id);
+    button.className = 'summary-student'; button.setAttribute('aria-label', `Sélectionner ${studentName(id)} pour l’intervention`);
+    button.addEventListener('click', () => selectStudent(id)); return button;
+  };
+  el('round-attention').replaceChildren();
+  const concerns = summary.filter(row => row.alerts.length);
+  for (const row of concerns) {
+    const item = document.createElement('p'); item.append(nameButton(row.studentId), ` : ${row.alerts.join(' · ')}.`);
+    el('round-attention').append(item);
+  }
+  if (!concerns.length) el('round-attention').textContent = 'Aucun point d’attention selon les seuils du bilan.';
+  const best = Math.max(...summary.map(row => row.progress));
+  if (best > 0) {
+    const item = document.createElement('p');
+    item.textContent = `Plus forte progression : ${summary.filter(row => row.progress === best).map(row => studentName(row.studentId)).join(', ')} (+${best} points de compréhension).`;
+    el('round-attention').append(item);
+  }
   el('round-rows').replaceChildren();
-  for (const state of simulation.studentStates) {
+  for (const state of states) {
+    const entry = summary.find(row => row.studentId === state.studentId)!;
     const previous = before.find(s => s.studentId === state.studentId)!;
     const row = document.createElement('tr');
-    for (const value of [studentName(state.studentId), `${state.lessonUnderstanding} % (${delta(state.lessonUnderstanding - previous.lessonUnderstanding)})`, `${state.concentration} (${delta(state.concentration - previous.concentration)})`, `${state.morale} (${delta(state.morale - previous.morale)})`, state.concentration ? 'En apprentissage' : 'Décroché']) {
+    const nameCell = document.createElement('td'); nameCell.append(nameButton(state.studentId)); row.append(nameCell);
+    const received = entry.received;
+    const interactions = [received.support ? `${received.support} aide(s)` : '', received.protection ? `${received.protection} protection(s)` : '',
+      received.combo ? `${received.combo} combo(s)` : '', received.disruptionDamage ? `Perturbations : −${received.disruptionDamage} concentration` : ''].filter(Boolean).join(' · ') || 'Aucune';
+    for (const value of [ `${state.lessonUnderstanding} % (${delta(state.lessonUnderstanding - previous.lessonUnderstanding)})`, `${state.concentration} (${delta(state.concentration - previous.concentration)})`, `${state.morale} (${delta(state.morale - previous.morale)})`, entry.alerts.join(' · ') || (entry.completed ? 'Chapitre acquis' : 'En apprentissage'), interactions]) {
       const cell = document.createElement('td'); cell.textContent = value; row.append(cell);
     }
     el('round-rows').append(row);
   }
-  el('round-highlights').textContent = `Round ${completedRounds} · ${events.filter(e => e.type === 'EFFECT_APPLIED').length} aides · ${events.filter(e => e.type === 'REACTION_TRIGGERED' && e.effect === 'REDUCE_PRESSURE').length} protections · ${events.filter(e => e.type === 'REACTION_TRIGGERED' && e.effect !== 'REDUCE_PRESSURE').length} soutiens réactifs · ${events.filter(e => e.type === 'DISRUPTION_RESOLVED').length} perturbations · ${events.filter(e => e.type === 'COMBINED_ATTACK_RESOLVED').length} combos`;
+  el('round-highlights').textContent = `Round ${completedRounds} · ${events.filter(e => e.type === 'EFFECT_APPLIED' && e.amount > 0).length} aides · ${events.filter(e => e.type === 'REACTION_TRIGGERED' && e.effect === 'REDUCE_PRESSURE').length} protections · ${events.filter(e => e.type === 'REACTION_TRIGGERED' && e.effect !== 'REDUCE_PRESSURE').length} soutiens réactifs · ${events.filter(e => e.type === 'DISRUPTION_RESOLVED').length} perturbations · ${events.filter(e => e.type === 'COMBINED_ATTACK_RESOLVED').length} combos`;
   el('round-result').hidden = false;
 }
 el<HTMLFormElement>('teacher-form').addEventListener('submit', async event => {
@@ -274,10 +301,11 @@ async function showEvents(events: GameEvent[]) {
       renderStudents();
     } else if (event.type === 'CONCENTRATION_CHANGED') {
       shownStates.get(event.studentId)!.concentration = event.after; renderStudents();
+      if (event.reason === 'effort') note(`${studentName(event.studentId)} : effort de travail, −${Math.round((event.before - event.after) * 100) / 100} concentration.`);
       if (event.reason !== 'support') feedback(event.studentId, event.after < event.before ? `−${Math.round((event.before - event.after)*100)/100} HP` : `+${Math.round((event.after-event.before)*100)/100} HP · reprise au prochain tour`);
     } else if (event.type === 'MORALE_CHANGED') {
       shownStates.get(event.studentId)!.morale = event.after; renderStudents();
-      note(`${studentName(event.studentId)} : moral ${event.before} → ${event.after}.`);
+      note(`${studentName(event.studentId)} : moral ${event.before} → ${event.after}${event.reason ? ` · ${{ success: 'réussite', retaliation: 'riposte', dropout: 'décrochage' }[event.reason]}` : ''}.`);
     } else if (event.type === 'STUDENT_DROPPED_OUT') {
       feedback(event.studentId, 'Décroche'); note(`${studentName(event.studentId)} décroche : concentration épuisée.`);
     } else if (event.type === 'STUDENT_RESUMED') {

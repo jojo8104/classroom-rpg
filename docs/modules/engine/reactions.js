@@ -1,9 +1,18 @@
+import { validateLearningRules } from '../data/learningRules.js';
 import { validateInteractionRules } from '../data/interactionRules.js';
 import { chapterMastery, checkMorale, masteryAccess } from './interactions.js';
 import { moraleMultiplier, roundValue } from './combat.js';
 import { applyTemporaryEffect, effectiveStats } from './effects.js';
 export function validateReactionSetup(students, setup) {
     const errors = [];
+    if (setup.learningRules) {
+        try {
+            validateLearningRules(setup.learningRules);
+        }
+        catch (error) {
+            errors.push(error.message);
+        }
+    }
     if (setup.interactionRules) {
         try {
             validateInteractionRules(setup.interactionRules);
