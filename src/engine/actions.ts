@@ -1,3 +1,5 @@
+import { behaviorCandidate, chooseBehavior, difficultyLoss, evolveRelation, getRelation, relationThreshold, socialRules, trait } from './social.js';
+import { changeMorale } from './resources.js';
 import { checkMorale } from './interactions.js';
 import type { Lesson, Student, StudentLessonState } from '../domain.js';
 import type { ActionEvent, ActionKind, ActionLimitReason, ConcentrationReason, ReactionLimitReason } from '../events.js';
@@ -135,14 +137,41 @@ export function resolveActionRound(
 
   const events: ActionEvent[] = [];
   function changeConcentration(state: StudentLessonState, value: number, reason: ConcentrationReason) {
-    updateConcentration(state, value, reason, rules.dropoutMoraleLoss, events);
+    updateConcentration(state, value, reason, reactionSetup?.classRelations ? difficultyLoss(byId.get(state.studentId)!, rules.dropoutMoraleLoss) : rules.dropoutMoraleLoss, events);
   }
   const interactionRules = reactionSetup?.interactionRules;
+  const social = reactionSetup?.classRelations;
+  const relation = (from: string, to: string) => social ? getRelation(social, from, to) : relationBetween(from, to, reactionSetup?.relations ?? []);
+  let socialCursor = 0;
+  function socialConsequences() {
+    if (!social || !reactionSetup) return;
+    const recent = events.slice(socialCursor); socialCursor = events.length;
+    for (const event of recent) {
+      if (event.type === 'EFFECT_APPLIED' && event.amount > 0 || event.type === 'REACTION_TRIGGERED' && event.before !== event.after) {
+        evolveRelation(social, byId.get(event.targetId)!, event.sourceId,
+          event.type === 'REACTION_TRIGGERED' && event.effect === 'REDUCE_PRESSURE' ? socialRules.defenseDelta : socialRules.supportDelta, event.type, events);
+      } else if (event.type === 'DISRUPTION_RESOLVED' && event.damage > 0) {
+        evolveRelation(social, byId.get(event.targetId)!, event.sourceId, socialRules.disruptionDelta, 'disruption', events);
+      } else if (event.type === 'COMBINED_ATTACK_RESOLVED' && event.appliedProgress > 0) {
+        evolveRelation(social, byId.get(event.targetId)!, event.sourceId, socialRules.comboDelta, 'combo', events);
+        evolveRelation(social, byId.get(event.sourceId)!, event.targetId, socialRules.comboDelta, 'combo', events);
+      } else if (event.type === 'UNDERSTANDING_CHANGED' && event.amount >= socialRules.comparisonThreshold) {
+        for (const observer of students) {
+          const observerState = states.get(observer.id)!;
+          if (trait(observer, 'competitive') <= 0 || observerState.concentration <= 0 || !areAdjacent(observer, byId.get(event.studentId)!, reactionSetup.classroom)) continue;
+          const delta = socialRules.comparisonMorale * trait(observer, 'competitive') * (relation(observer.id, event.studentId) < 0 ? -1 : 1);
+          changeMorale(observerState, observerState.morale + (delta < 0 ? difficultyLoss(observer, -delta) * -1 : delta), events);
+          evolveRelation(social, observer, event.studentId, delta / socialRules.comparisonMorale, 'comparison', events);
+        }
+      }
+    }
+    socialCursor = events.length;
+  }
   function supportCandidates(student: Student) {
     return students.filter(candidate => candidate.id !== student.id && (!interactionRules || reactionSetup &&
       areAdjacent(student, candidate, reactionSetup.classroom) &&
-      relationBetween(student.id, candidate.id, reactionSetup.relations) >= interactionRules.mainSupportMinimumRelation &&
-      relationBetween(student.id, candidate.id, reactionSetup.relations) > 0 && states.get(candidate.id)!.concentration < 100));
+      relation(student.id, candidate.id) >= (social ? relationThreshold(student, interactionRules.mainSupportMinimumRelation) : interactionRules.mainSupportMinimumRelation) &&
+      relation(student.id, candidate.id) > 0 && states.get(candidate.id)!.concentration < 100));
   }
   for (const student of students) {
     if (interactionRules) { queue.enqueue({ actorId: student.id, kind: 'WORK', depth: 0 }); continue; }
@@ -160,20 +189,32 @@ export function resolveActionRound(
   const resting = new Set<string>();
   let action: QueuedAction | undefined;
   while ((action = queue.dequeue()) !== undefined) {
+    socialConsequences();
     const student = byId.get(action.actorId)!;
     const state = states.get(student.id)!;
     const chapter = state.chapters.find(c => c.chapterId === chapterId)!;
     if (action.depth > 0 && (state.concentration === 0 || resting.has(student.id))) continue;
     const checks = interactionRules && action.depth === 0 ? checkMorale(student.id, effectiveStats(student, state).morale,
       random, interactionRules, events, 'MAIN_ACTION', student.id) : undefined;
+    let selectedTarget: string | undefined;
     let turnRules = rules;
     if (checks && state.concentration > 0) {
-      const support = checks.positive && random.next() < rules.supportChanceByArchetype[student.archetypeId]! && supportCandidates(student).length > 0;
-      const disrupt = checks.negative && teacherContext && reactionSetup && (student.disruptionChance ?? 0) > 0 &&
+      const support = !social && checks.positive && random.next() < rules.supportChanceByArchetype[student.archetypeId]! && supportCandidates(student).length > 0;
+      const disrupt = !social && checks.negative && teacherContext && reactionSetup && (student.disruptionChance ?? 0) > 0 &&
         students.some(other => areAdjacent(student, other, reactionSetup.classroom)) && random.next() < disruptionChance(student, state);
       action.kind = disrupt ? 'DISRUPT' : support ? 'SUPPORT' : 'WORK';
-      if (checks.negative && !disrupt) {
-        turnRules = { ...rules, workScale: rules.workScale * interactionRules!.negativePowerMultiplier,
+      if (social) {
+        const choices = [behaviorCandidate(student, state, 'WORK', 0)];
+        const chance = rules.supportChanceByArchetype[student.archetypeId]!;
+        if (checks.positive && chance > 0) for (const target of supportCandidates(student)) choices.push(behaviorCandidate(student, states.get(target.id)!, 'SUPPORT', relation(student.id, target.id), socialRules.base * chance));
+        if (checks.negative && teacherContext && reactionSetup && (student.disruptionChance ?? 0) + trait(student, 'impulsive') + trait(student, 'sociable') > 0) {
+          for (const target of students.filter(t => areAdjacent(student, t, reactionSetup.classroom) && states.get(t.id)!.concentration > 0)) choices.push(behaviorCandidate(student, states.get(target.id)!, 'DISRUPT', relation(student.id, target.id), socialRules.base * disruptionChance(student, state)));
+        }
+        const chosen = chooseBehavior(choices, random, events)!;
+        action.kind = chosen.action as ActionKind; selectedTarget = chosen.targetId;
+      }
+      if (checks.negative && action.kind !== 'DISRUPT') {
+        turnRules = { ...rules, workScale: rules.workScale * (social ? 1 - (1 - interactionRules!.negativePowerMultiplier) * (1 - trait(student, 'calm') * 0.5) : interactionRules!.negativePowerMultiplier),
           supportBonus: rules.supportBonus * interactionRules!.negativePowerMultiplier };
         events.push({ type: 'BEHAVIOR_APPLIED', studentId: student.id, effect: 'DISTRACTED', multiplier: interactionRules!.negativePowerMultiplier });
       }
@@ -193,7 +234,7 @@ export function resolveActionRound(
       const understandingBefore = state.lessonUnderstanding;
       const resolvedEffects = new Set<string>();
       const modifiers: AttackModifiers = {};
-      const turn = resolveWorkTurn({ learningRules: reactionSetup?.learningRules, student, state, lesson: effectiveLesson, chapterId, rules: turnRules, random, events, changeConcentration, modifiers });
+      const turn = resolveWorkTurn({ social: !!social, learningRules: reactionSetup?.learningRules, student, state, lesson: effectiveLesson, chapterId, rules: turnRules, random, events, changeConcentration, modifiers });
       for (const window of turn) {
         events.push({ type: 'REACTION_WINDOW_OPENED', studentId: student.id, window, extra: action.depth > 0 });
         if (reactionSetup) resolveReactionWindow({ behavior: { chapterId, random }, window, target: student, students, states,
@@ -201,10 +242,10 @@ export function resolveActionRound(
           attackSucceeded: state.lessonUnderstanding > understandingBefore, modifiers });
       }
     } else if (action.kind === 'DISRUPT' && teacherContext && reactionSetup) {
-      resolveDisruption(student, students, reactionSetup.classroom, teacherContext, states, random, events, changeConcentration);
+      resolveDisruption(student, students, reactionSetup.classroom, teacherContext, states, random, events, changeConcentration, selectedTarget);
     } else {
       const candidates = supportCandidates(student);
-      const target = candidates[random.integer(candidates.length)]!;
+      const target = selectedTarget ? byId.get(selectedTarget)! : candidates[random.integer(candidates.length)]!;
       const targetState = states.get(target.id)!;
       events.push({ type: 'STUDENT_ACTION', actorId: student.id, actionId: 'SUPPORT', targetId: target.id, extra: action.depth > 0 });
       const before = targetState.concentration;
@@ -219,6 +260,7 @@ export function resolveActionRound(
       }
     }
   }
+  socialConsequences();
   endRoundEffects(states.values(), events);
   return { students: students.map(student => states.get(student.id)!), events };
 }

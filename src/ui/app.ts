@@ -1,17 +1,19 @@
+import { getRelation, modifyRelation, personalityLabels, personalityTraits } from '../engine/social.js';
 import { summarizeRound } from './roundSummary.js';
 import { chapterMastery, masteryRequirement, moraleChances } from '../engine/interactions.js';
 import { moraleMultiplier } from '../engine/combat.js';
-import { createPrototype } from '../data/prototype.js';
+import { createSocialPrototype } from '../data/socialPrototype.js';
 import { Simulation } from '../engine/simulation.js';
 import type { TeacherAction, TeacherActionKind, StudentLessonState } from '../domain.js';
 import type { GameEvent } from '../events.js';
-import { areAdjacent, relationBetween } from '../engine/reactions.js';
+import { areAdjacent } from '../engine/reactions.js';
 import { createTeacherRules } from '../data/teacherRules.js';
 import { createActionRules } from '../data/rules.js';
 import { effectiveStats } from '../engine/effects.js';
 
-const scenario = createPrototype();
+const scenario = createSocialPrototype();
 let simulation = new Simulation(scenario, 12345);
+let shownRelations = simulation.classRelations!;
 let selected = scenario.students[0]!.id;
 let shown = new Map(scenario.students.map(s => [s.id, 0]));
 let shownStates = new Map(simulation.studentStates.map(s => [s.studentId, s]));
@@ -30,6 +32,7 @@ const log = el<HTMLOListElement>('log');
 const studentName = (id: string) => scenario.students.find(s => s.id === id)?.name ?? 'Professeur';
 
 function renderStudents() {
+  const matrixOpen = el('student-detail').querySelector('details')?.open ?? false;
   for (const student of scenario.students) {
     const button = el<HTMLButtonElement>(student.id);
     button.setAttribute('aria-pressed', String(selected === student.id));
@@ -88,11 +91,20 @@ function renderStudents() {
       el('student-detail').append(info);
     }
   }
+  const traits = document.createElement('p');
+  traits.textContent = 'Personnalité : ' + personalityTraits.map(key => personalityLabels[key] + ' ' + (student.personality?.[key] ?? 0).toFixed(1)).join(' · ');
+  el('student-detail').append(traits);
   const relations = document.createElement('p');
   relations.textContent = 'Relations avec les voisins : ' + scenario.students
     .filter(other => areAdjacent(student, other, scenario.classroom))
-    .map(other => `${other.name} ${relationBetween(student.id, other.id, scenario.relations ?? [])}/100`).join(' · ');
+    .map(other => `${other.name} ${getRelation(shownRelations, student.id, other.id)}/100`).join(' · ');
   el('student-detail').append(relations);
+  const matrix = document.createElement('details'); matrix.open = matrixOpen;
+  const summary = document.createElement('summary'); summary.textContent = 'Relations orientées · matrice de debug'; matrix.append(summary);
+  const scroll = document.createElement('div'); scroll.style.overflowX = 'auto';
+  const table = document.createElement('table');
+  table.innerHTML = '<caption>Ligne → colonne · −100 à +100</caption><thead><tr><th scope="col">Élève</th>' + scenario.students.map(s => '<th scope="col">' + s.name + '</th>').join('') + '</tr></thead><tbody>' + scenario.students.map(a => '<tr><th scope="row">' + a.name + '</th>' + scenario.students.map(b => '<td>' + (a.id === b.id ? '—' : getRelation(shownRelations, a.id, b.id)) + '</td>').join('') + '</tr>').join('') + '</tbody>';
+  scroll.append(table); matrix.append(scroll); el('student-detail').append(matrix);
 }
 for (const student of scenario.students) {
   const seat = scenario.classroom.seats.find(s => s.id === student.seatId)!;
@@ -237,6 +249,9 @@ async function showEvents(events: GameEvent[]) {
       shownTeacher.patience = event.after; renderTeacher();
     } else if (event.type === 'TEACHER_ACTION_APPLIED') {
       note(`Professeur : ${createTeacherRules().actions[event.action].label}${event.action === 'PASS' ? '' : ` · ${event.targetIds.map(studentName).join(', ')} · puissance ${event.power}`}.`);
+    } else if (event.type === 'RELATION_CHANGED') {
+      modifyRelation(shownRelations, event.from, event.to, event.after - getRelation(shownRelations, event.from, event.to));
+      note('Relation ' + studentName(event.from) + ' → ' + studentName(event.to) + ' : ' + event.before + ' → ' + event.after); renderStudents();
     } else if (event.type === 'DISRUPTION_RESOLVED') {
       note(`${studentName(event.sourceId)} perturbe ${studentName(event.targetId)} : −${event.damage} concentration après autorité.`);
     } else if (event.type === 'TEMPORARY_EFFECT_APPLIED') {
@@ -361,6 +376,7 @@ advance.addEventListener('click', () => { void advanceLesson(); });
 restart.addEventListener('submit', event => {
   event.preventDefault(); if (busy || !restart.reportValidity()) return;
   simulation = new Simulation(scenario, Number(seed.value));
+  shownRelations = simulation.classRelations!;
   reactionsUsed.clear();
   activeChapterId = scenario.lesson.chapters[0]!.id; reactionFeedback.clear();
   completedRounds = 0; shownTeacher = simulation.teacherState; actionSelect.value = 'ENCOURAGE';

@@ -10,6 +10,8 @@ export type ReactionLimitReason = 'maxActionsPerRound' | 'maxChainDepth' | 'maxR
 
 // Les événements conservent les valeurs au moment de l'effet, pas de références mutables.
 export type ActionEvent =
+  | ({ type: 'BEHAVIOR_CANDIDATE_CREATED' | 'BEHAVIOR_SELECTED' } & import('./engine/social.js').BehaviorCandidate)
+  | { type: 'RELATION_CHANGED'; from: string; to: string; before: number; after: number; reason: string }
   | { type: 'MORALE_CHECK'; studentId: string; targetId: string; context: 'MAIN_ACTION' | ReactionWindow;
       kind: 'negative' | 'positive'; coefficient: number; chance: number; draw: number; success: boolean }
   | { type: 'BEHAVIOR_APPLIED'; studentId: string; effect: 'DISTRACTED'; multiplier: number }

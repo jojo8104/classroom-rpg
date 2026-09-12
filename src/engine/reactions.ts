@@ -1,3 +1,4 @@
+import { behaviorCandidate, weightedChoice, getRelation, relationThreshold, validateSocial } from './social.js';
 import { validateLearningRules, type LearningRules } from '../data/learningRules.js';
 import { validateInteractionRules, type InteractionRules } from '../data/interactionRules.js';
 import { chapterMastery, checkMorale, masteryAccess } from './interactions.js';
@@ -11,6 +12,7 @@ import { applyTemporaryEffect, effectiveStats } from './effects.js';
 import type { AttackModifiers } from './turn.js';
 
 export interface ReactionSetup {
+  classRelations?: import('../domain.js').ClassRelations | undefined;
   learningRules?: LearningRules | undefined;
   interactionRules?: InteractionRules | undefined;
   classroom: Classroom;
@@ -29,7 +31,8 @@ export interface QueuedReaction {
 }
 
 export function validateReactionSetup(students: readonly Student[], setup: ReactionSetup): string[] {
-  const errors: string[] = [];
+  const errors: string[] = validateSocial(students, setup.classRelations);
+  if (setup.classRelations && !setup.interactionRules) errors.push('Les comportements sociaux exigent les règles de moral et de maîtrise.');
   if (setup.learningRules) { try { validateLearningRules(setup.learningRules); } catch (error) { errors.push((error as Error).message); } }
   if (setup.interactionRules) {
     try { validateInteractionRules(setup.interactionRules); } catch (error) { errors.push((error as Error).message); }
@@ -121,7 +124,7 @@ export function resolveReactionWindow(context: ReactionContext): void {
   for (const student of ordered) {
     const state = states.get(student.id);
     if (!state || state.concentration <= 0 || resting.has(student.id) || !areAdjacent(student, target, setup.classroom)) continue;
-    const relation = relationBetween(student.id, target.id, setup.relations);
+    const relation = setup.classRelations ? getRelation(setup.classRelations, student.id, target.id) : relationBetween(student.id, target.id, setup.relations);
     if (!interactionRules && relation <= 0) continue;
     const ids = student.reactionIds ?? setup.archetypes.find(archetype => archetype.id === student.archetypeId)?.reactionIds ?? [];
     const available = setup.abilities.filter(ability => ids.includes(ability.id) && ability.window === window && !resolvedEffects.has(effectKey(ability)))
@@ -142,7 +145,7 @@ export function resolveReactionWindow(context: ReactionContext): void {
           ability.effect === 'COMBINED_ATTACK' && (rules.workScale <= 0 || effectiveStats(student, state).intelligence <= 0 || effectiveStats(target, targetState).intelligence <= 0) ||
           ability.effect === 'APPLY_TEMPORARY_EFFECT' && (roundValue(ability.value * relation / 100 * powerModifier) <= 0 ||
             window === 'AFTER_STUDENT_ATTACK' && !context.attackSucceeded || effectiveStats(target, targetState)[ability.stat] >= 100);
-        const reason = !checks!.positive ? 'morale' : relation <= 0 || relation < ability.minRelation ? 'relation' : !access.allowed ? 'mastery' : noEffect ? 'noEffect' : 'eligible';
+        const reason = !checks!.positive ? 'morale' : relation <= 0 || relation < (setup.classRelations ? relationThreshold(student, ability.minRelation, ability.effect === 'COMBINED_ATTACK') : ability.minRelation) ? 'relation' : !access.allowed ? 'mastery' : noEffect ? 'noEffect' : 'eligible';
         events.push({ type: 'REACTION_EVALUATED', sourceId: student.id, targetId: target.id, abilityId: ability.id,
           window, reason, mastery, targetMastery, minimum: access.minimum, modifier: powerModifier });
         if (reason !== 'eligible') continue;
@@ -157,7 +160,7 @@ export function resolveReactionWindow(context: ReactionContext): void {
         if (window === 'AFTER_STUDENT_ATTACK' && !context.attackSucceeded) continue;
         if (effectiveStats(target, targetState)[ability.stat] >= 100) continue;
       }
-      if (ids.includes(ability.id) && ability.window === window && relation >= ability.minRelation) {
+      if (ids.includes(ability.id) && ability.window === window && relation >= (setup.classRelations ? relationThreshold(student, ability.minRelation, ability.effect === 'COMBINED_ATTACK') : ability.minRelation)) {
         candidates.push({ actorId: student.id, targetId: target.id, ability, relation, powerModifier, depth: context.depth });
       }
     }
@@ -179,13 +182,23 @@ export function resolveReactionWindow(context: ReactionContext): void {
         (ability.window === window || window === 'BEFORE_STUDENT_ATTACK' && ability.window === 'DURING_STUDENT_ATTACK') &&
         candidate.relation >= ability.minRelation);
   }).map(candidate => candidate.actorId));
+  if (setup.classRelations && context.behavior) {
+    const pool = candidates.map(candidate => ({ candidate, ...behaviorCandidate(students.find(s => s.id === candidate.actorId)!, targetState, candidate.ability.id, candidate.relation) }));
+    for (const item of pool) { const { candidate: _, ...detail } = item; events.push({ type: 'BEHAVIOR_CANDIDATE_CREATED', ...detail }); }
+    candidates.length = 0;
+    while (pool.length) {
+      const chosen = weightedChoice(pool, context.behavior.random)!;
+      candidates.push(chosen.candidate); pool.splice(pool.indexOf(chosen), 1);
+    }
+  }
   for (const candidate of candidates) {
-    if (candidate.ability.effect === 'REDUCE_COMPLEXITY' && comboPartners.has(candidate.actorId)) continue;
+    if (!setup.classRelations && candidate.ability.effect === 'REDUCE_COMPLEXITY' && comboPartners.has(candidate.actorId)) continue;
     const reason = queue.enqueueReaction(candidate);
     if (reason) {
       events.push({ type: 'REACTION_LIMIT_REACHED', sourceId: candidate.actorId, targetId: target.id, reason });
       continue;
     }
+    if (setup.classRelations) events.push({ type: 'BEHAVIOR_SELECTED', ...behaviorCandidate(students.find(s => s.id === candidate.actorId)!, targetState, candidate.ability.id, candidate.relation) });
     // Une réaction par fenêtre ; une seule protection et un soutien par statistique
     // sur ce tour. Les autres élèves conservent leur disponibilité.
     break;

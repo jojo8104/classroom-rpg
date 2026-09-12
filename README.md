@@ -291,3 +291,33 @@ dans le formulaire du professeur sans appliquer d'intervention. Les résultats
 restent ceux de la fin du round, même après un encouragement ou une pause.
 
 Le compte rendu des critères et du parcours complet est dans [VALIDATION_ROADMAP2.md](VALIDATION_ROADMAP2.md).
+
+## Roadmap 3 — personnalité et relations
+
+L'interface et `npm run simulate` utilisent `createSocialPrototype`. `createPrototype`
+reste le scénario historique pour les tests des Roadmaps 1 et 2.
+
+- `Student.personality` compose six intensités entre 0 et 1 (absence = 0).
+- `PrototypeScenario.classRelations.links` contient les liens orientés −100/+100.
+  Les helpers de `src/engine/social.ts` centralisent accès, modification et génération.
+- Une opportunité positive ouvre le soutien ; une négative peut ouvrir une perturbation.
+  Le travail reste possible. L'archétype garde ses capacités et son poids de soutien.
+- Les soutiens principaux comparent plusieurs voisins ; une réaction protège ou aide
+  l'élève dont le tour est ouvert, en départageant les aidants et leurs capacités.
+- La maîtrise reste une condition stricte ; l'altruisme assouplit les seuils ordinaires,
+  jamais le seuil de synergie. Une relation non positive ne permet pas l'aide.
+- Les conséquences sont appliquées entre deux actions : gratitude du bénéficiaire,
+  gratitude réciproque après combo utile, dégradation après perturbation effective,
+  comparaison compétitive après une progression d'au moins 10 points de compréhension.
+- La persévérance amortit les pertes de moral après riposte/décrochage. Le calme amortit
+  les pertes et la distraction, mais réduit les poids et fluctuations sociales.
+- `socialRules` regroupe les paramètres de prototype. Les événements de candidature et
+  sélection décomposent les poids ; les refus pédagogiques restent `REACTION_EVALUATED`.
+- La fiche affiche les traits et une matrice repliable (ligne → colonne). Le journal CLI
+  affiche également les décisions et la matrice finale.
+
+Pour enchaîner deux séances, transmettre `result.nextLessonStudents` et
+`result.classRelations` au scénario suivant. Le moteur copie le scénario entrant,
+retourne des snapshots et ne sauvegarde pas automatiquement sur disque.
+Les anciennes paires réciproques peuvent être converties par `migrateRelations` ;
+les scénarios sans état social explicite conservent leurs règles historiques.

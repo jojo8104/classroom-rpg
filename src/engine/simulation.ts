@@ -12,6 +12,7 @@ export type LessonState = 'ROUND_READY' | 'ROUND_RESOLVING' | 'ROUND_RESULT' |
   'TEACHER_INTERVENTION' | 'LESSON_FINISHED';
 
 export interface SimulationResult {
+  classRelations?: import('../domain.js').ClassRelations;
   teacher: TeacherState;
   decisions: TeacherAction[];
   nextLessonStudents: PrototypeScenario['students'];
@@ -62,6 +63,7 @@ export class Simulation {
     this.emit({ type: 'CHAPTER_STARTED' });
   }
 
+  get classRelations(): import('../domain.js').ClassRelations | undefined { return structuredClone(this.scenario.classRelations); }
   get state(): LessonState { return this.phase; }
   get events(): GameEvent[] { return structuredClone(this.history); }
   get studentStates(): StudentLessonState[] { return structuredClone(this.students); }
@@ -102,7 +104,7 @@ export class Simulation {
     const result = resolveActionRound(this.scenario.students, this.students, this.random, this.rules,
       this.scenario.lesson, this.scenario.lesson.chapters[this.chapterIndex]!.id,
       { learningRules: this.scenario.learningRules, interactionRules: this.scenario.interactionRules, classroom: this.scenario.classroom, archetypes: this.scenario.archetypes,
-        relations: this.scenario.relations ?? [], abilities: this.scenario.reactionAbilities ?? [] },
+        classRelations: this.scenario.classRelations, relations: this.scenario.relations ?? [], abilities: this.scenario.reactionAbilities ?? [] },
       { teacher: this.teacher, rules: this.teacherRules });
     this.students = result.students;
     for (const event of result.events) this.emit(event);
@@ -165,7 +167,7 @@ export class Simulation {
     // Nouvelle séance : concentration restaurée, moral conservé. L'historique reste dans results.
     const nextLessonStudents = this.scenario.students.map(student => ({ ...student, concentration: 100,
       morale: this.students.find(state => state.studentId === student.id)!.morale }));
-    return { seed: this.seed, results: this.individualResults(), events: this.events, nextLessonStudents,
+    return { ...(this.scenario.classRelations ? { classRelations: this.classRelations! } : {}), seed: this.seed, results: this.individualResults(), events: this.events, nextLessonStudents,
       teacher: this.teacherState, decisions: structuredClone(this.decisions) };
   }
 

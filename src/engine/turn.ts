@@ -1,3 +1,4 @@
+import { difficultyLoss } from './social.js';
 import type { LearningRules } from '../data/learningRules.js';
 import { changeMorale } from './resources.js';
 import type { Lesson, Student, StudentLessonState } from '../domain.js';
@@ -8,6 +9,7 @@ import type { SeededRandom } from './random.js';
 import { effectiveStats } from './effects.js';
 
 export interface WorkTurnContext {
+  social?: boolean;
   learningRules?: LearningRules | undefined;
   modifiers?: AttackModifiers;
   student: Student;
@@ -43,7 +45,7 @@ function resolveRetaliation(context: WorkTurnContext): void {
   context.changeConcentration(state, state.concentration - damage, 'pressure');
   if (context.learningRules && damage > 0) {
     const loss = roundValue(Math.min(context.learningRules.maxRetaliationMoraleLoss, damage * context.learningRules.damageMoraleRatio));
-    if (loss > 0) changeMorale(state, state.morale - loss, events, 'retaliation');
+    if (loss > 0) changeMorale(state, state.morale - (context.social ? difficultyLoss(student, loss) : loss), events, 'retaliation');
   }
 }
 

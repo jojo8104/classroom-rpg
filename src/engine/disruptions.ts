@@ -14,9 +14,9 @@ export function disruptionChance(student: Student, state: StudentLessonState): n
 
 export function resolveDisruption(source: Student, students: readonly Student[], classroom: Classroom,
   context: TeacherRoundContext, states: ReadonlyMap<string, StudentLessonState>, random: SeededRandom,
-  events: ActionEvent[], changeConcentration: (state: StudentLessonState, value: number, reason: 'disruption') => void): void {
+  events: ActionEvent[], changeConcentration: (state: StudentLessonState, value: number, reason: 'disruption') => void, selectedTarget?: string): void {
   const neighbors = students.filter(student => areAdjacent(source, student, classroom));
-  const target = neighbors[random.integer(neighbors.length)]!;
+  const target = selectedTarget ? neighbors.find(s => s.id === selectedTarget)! : neighbors[random.integer(neighbors.length)]!;
   const state = states.get(target.id)!;
   const power = context.rules.disruptionPower;
   const afterAuthority = roundValue(power * (1 - context.teacher.authority / 100));

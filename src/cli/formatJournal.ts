@@ -7,6 +7,9 @@ export function formatJournal(scenario: PrototypeScenario, result: SimulationRes
   const lines: string[] = [];
   for (const event of result.events) {
     switch (event.type) {
+      case 'BEHAVIOR_CANDIDATE_CREATED':
+      case 'BEHAVIOR_SELECTED': lines.push('  ' + (event.type === 'BEHAVIOR_SELECTED' ? 'CHOIX' : 'CANDIDAT') + ' ' + name(event.actorId) + ' → ' + name(event.targetId) + ' · ' + event.action + ' · base ' + event.baseWeight + ' · relation ' + event.relationModifier + ' · personnalité ' + event.personalityModifier + ' · contexte ' + event.contextModifier + ' · maîtrise ' + event.masteryValid + ' · poids ' + event.finalWeight); break;
+      case 'RELATION_CHANGED': lines.push('  Relation ' + name(event.from) + ' → ' + name(event.to) + ' : ' + event.before + ' → ' + event.after + ' (' + event.reason + ')'); break;
       case 'MORALE_CHECK': lines.push(`  ${name(event.studentId)} · ${event.context} · moral ${event.coefficient.toFixed(2)} · check ${event.kind} : ${Math.round(event.chance * 10000) / 100} % · tirage ${event.draw.toFixed(4)} → ${event.success ? 'opportunité' : 'échec'}`); break;
       case 'REACTION_EVALUATED': lines.push(`  ${name(event.sourceId)} → ${name(event.targetId)} · ${event.abilityId} : ${event.reason} · maîtrise ${event.mastery} / cible ${event.targetMastery}, minimum ${event.minimum} · puissance ×${event.modifier.toFixed(2)}`); break;
       case 'BEHAVIOR_APPLIED': lines.push(`  ${name(event.studentId)} distrait : efficacité ×${event.multiplier}`); break;
@@ -51,6 +54,10 @@ export function formatJournal(scenario: PrototypeScenario, result: SimulationRes
           ...s.chapters.map(c => `  ${c.chapterId} : ${c.progress} points, ${c.missedRounds} étape(s) manquée(s)`)])); break;
       default: { const exhaustive: never = event; throw new Error(`Événement inconnu : ${exhaustive}`); }
     }
+  }
+  if (result.classRelations) {
+    lines.push('\nMATRICE RELATIONNELLE — ligne → colonne', '          ' + scenario.students.map(s => s.name.padStart(8)).join(''));
+    for (const a of scenario.students) lines.push(a.name.padEnd(10) + scenario.students.map(b => String(a.id === b.id ? '—' : result.classRelations!.links.find(r => r.from === a.id && r.to === b.id)?.score ?? 0).padStart(8)).join(''));
   }
   lines.push('\nConcepts référencés :', ...scenario.lesson.conceptIds.map(id => `- ${id}`), `Seed : ${result.seed}`);
   return lines.join('\n');

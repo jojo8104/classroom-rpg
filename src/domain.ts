@@ -1,5 +1,6 @@
 // Les définitions persistantes sont séparées de l'état temporaire d'une séance.
 export interface Student {
+  personality?: PersonalityProfile;
   id: string;
   name: string;
   intelligence: number;
@@ -11,6 +12,11 @@ export interface Student {
   reactionIds?: string[];
   disruptionChance?: number;
 }
+
+export type PersonalityTrait = 'altruistic' | 'competitive' | 'persistent' | 'impulsive' | 'calm' | 'sociable';
+export type PersonalityProfile = Partial<Record<PersonalityTrait, number>>;
+export interface DirectedRelation { from: string; to: string; score: number }
+export interface ClassRelations { links: DirectedRelation[] }
 
 export interface StudentArchetype {
   id: string;
@@ -146,6 +152,7 @@ export interface LessonResult {
 }
 
 export interface PrototypeScenario {
+  classRelations?: ClassRelations;
   learningRules?: import('./data/learningRules.js').LearningRules;
   interactionRules?: import('./data/interactionRules.js').InteractionRules;
   relations?: StudentRelation[];
