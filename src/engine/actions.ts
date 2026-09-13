@@ -13,6 +13,7 @@ import { effectBonus, effectiveStats, endRoundEffects, validateEffects } from '.
 import { areAdjacent, relationBetween, resolveReactionWindow, validateReactionSetup, type QueuedReaction, type ReactionSetup } from './reactions.js';
 import { updateConcentration } from './resources.js';
 import { disruptionChance, resolveDisruption, type TeacherRoundContext } from './disruptions.js';
+import { AbilityUsage, specializationPower } from './abilities.js';
 
 export interface QueuedAction {
   actorId: string;
@@ -102,6 +103,11 @@ export function resolveActionRound(
   reactionSetup?: ReactionSetup,
   teacherContext?: TeacherRoundContext,
 ): ActionRoundResult {
+  if (students.some(student => student.progression)) {
+    if (!reactionSetup?.interactionRules) throw new Error('Les compétences RPG exigent les règles de maîtrise.');
+    reactionSetup = { ...reactionSetup, abilityUsage: reactionSetup.abilityUsage ?? new AbilityUsage() };
+    reactionSetup.abilityUsage!.startRound();
+  }
   validateActionRules(rules, students.length);
   if (reactionSetup) {
     const errors = validateReactionSetup(students, reactionSetup);
@@ -168,8 +174,8 @@ export function resolveActionRound(
     socialCursor = events.length;
   }
   function supportCandidates(student: Student) {
-    return students.filter(candidate => candidate.id !== student.id && (!interactionRules || reactionSetup &&
-      areAdjacent(student, candidate, reactionSetup.classroom) &&
+    if (reactionSetup?.abilityUsage?.reason(student, 'SUPPORT')) return [];
+    return students.filter(candidate => candidate.id !== student.id && (!reactionSetup || areAdjacent(student, candidate, reactionSetup.classroom)) && (!interactionRules || reactionSetup &&
       relation(student.id, candidate.id) >= (social ? relationThreshold(student, interactionRules.mainSupportMinimumRelation) : interactionRules.mainSupportMinimumRelation) &&
       relation(student.id, candidate.id) > 0 && states.get(candidate.id)!.concentration < 100));
   }
@@ -181,7 +187,7 @@ export function resolveActionRound(
       queue.enqueue({ actorId: student.id, kind: 'DISRUPT', depth: 0 });
       continue;
     }
-    const kind = random.next() < rules.supportChanceByArchetype[student.archetypeId]! && students.length > 1 ? 'SUPPORT' : 'WORK';
+    const kind = random.next() < rules.supportChanceByArchetype[student.archetypeId]! && supportCandidates(student).length > 0 ? 'SUPPORT' : 'WORK';
     queue.enqueue({ actorId: student.id, kind, depth: 0 });
   }
 
@@ -227,6 +233,7 @@ export function resolveActionRound(
       changeConcentration(state, rules.recovery, 'recovery');
       continue;
     }
+    if (action.kind === 'SUPPORT' && supportCandidates(student).length === 0) action.kind = 'WORK';
     if (action.kind === 'WORK') {
       events.push({ type: 'STUDENT_ACTION', actorId: student.id, actionId: 'WORK', targetId: student.id, extra: action.depth > 0 });
       // La réaction modifie uniquement la leçon effective de cette action.
@@ -249,9 +256,11 @@ export function resolveActionRound(
       const targetState = states.get(target.id)!;
       events.push({ type: 'STUDENT_ACTION', actorId: student.id, actionId: 'SUPPORT', targetId: target.id, extra: action.depth > 0 });
       const before = targetState.concentration;
-      changeConcentration(targetState, before + turnRules.supportBonus, 'support');
+      reactionSetup?.abilityUsage?.consume(student, 'SUPPORT');
+      changeConcentration(targetState, before + turnRules.supportBonus * specializationPower(student, 'SUPPORT'), 'support');
       events.push({ type: 'EFFECT_APPLIED', sourceId: student.id, targetId: target.id,
         effectId: 'concentration_bonus', before, after: targetState.concentration, amount: roundValue(targetState.concentration - before) });
+      if (student.progression) events.push({ type: 'ABILITY_USED', studentId: student.id, targetId: target.id, abilityId: 'SUPPORT', effective: targetState.concentration > before });
       if (random.next() < rules.extraActionChance && targetState.concentration > 0 && !resting.has(target.id)) {
         const depth = action.depth + 1;
         const reason = queue.enqueue({ actorId: target.id, kind: 'WORK', depth });

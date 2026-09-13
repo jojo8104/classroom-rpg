@@ -2,7 +2,13 @@ import { getRelation, modifyRelation, personalityLabels, personalityTraits } fro
 import { summarizeRound } from './roundSummary.js';
 import { chapterMastery, masteryRequirement, moraleChances } from '../engine/interactions.js';
 import { moraleMultiplier } from '../engine/combat.js';
-import { createSocialPrototype } from '../data/socialPrototype.js';
+import { createPreparationPrototype } from '../data/preparationPrototype.js';
+import { ClassPreparation, GAME_STATE, type PlanStorage } from '../systems/ClassPreparation.js';
+import { ClassroomPreparationView } from './ClassroomPreparationView.js';
+import { ClassroomLayoutSystem } from '../systems/ClassroomLayoutSystem.js';
+import { abilities as abilityCatalog, specializations } from '../data/abilities.js';
+import { specializationTrends } from '../engine/progression.js';
+import { getRequiredXpForLevel, progressionRules, rewardLabels } from '../data/progressionRules.js';
 import { Simulation } from '../engine/simulation.js';
 import type { TeacherAction, TeacherActionKind, StudentLessonState } from '../domain.js';
 import type { GameEvent } from '../events.js';
@@ -10,16 +16,22 @@ import { areAdjacent } from '../engine/reactions.js';
 import { createTeacherRules } from '../data/teacherRules.js';
 import { createActionRules } from '../data/rules.js';
 import { effectiveStats } from '../engine/effects.js';
+import { effectiveAbility } from '../engine/abilities.js';
 
-const scenario = createSocialPrototype();
-let simulation = new Simulation(scenario, 12345);
-let shownRelations = simulation.classRelations!;
+const scenario = createPreparationPrototype();
+let storage: PlanStorage | undefined;
+try { storage = window.localStorage; } catch { /* Le jeu reste disponible sans stockage. */ }
+const preparation = new ClassPreparation(scenario, storage);
+let gameState: typeof GAME_STATE[keyof typeof GAME_STATE] = GAME_STATE.CLASS_PREPARATION;
+let simulation: Simulation;
+let preparationView: ClassroomPreparationView | undefined;
+let shownRelations = scenario.classRelations!;
 let selected = scenario.students[0]!.id;
 let shown = new Map(scenario.students.map(s => [s.id, 0]));
-let shownStates = new Map(simulation.studentStates.map(s => [s.studentId, s]));
+let shownStates = new Map<string, StudentLessonState>();
 let busy = false;
 let completedRounds = 0;
-let shownTeacher = simulation.teacherState;
+let shownTeacher = { ...scenario.teacher, maxPatience: scenario.teacher.maxPatience ?? scenario.teacher.patience };
 const reactionsUsed = new Map<string, number>();
 let activeChapterId = scenario.lesson.chapters[0]!.id;
 const reactionFeedback = new Map<string, string>();
@@ -29,12 +41,18 @@ const advance = el<HTMLButtonElement>('advance');
 const seed = el<HTMLInputElement>('seed');
 const restart = el<HTMLFormElement>('restart');
 const log = el<HTMLOListElement>('log');
+const lessonPanel = document.createElement('section');
+lessonPanel.id = 'lesson-results'; lessonPanel.className = 'round-result'; lessonPanel.hidden = true;
+lessonPanel.setAttribute('aria-label', 'Bilan de la leçon');
+el('round-result').after(lessonPanel);
 const studentName = (id: string) => scenario.students.find(s => s.id === id)?.name ?? 'Professeur';
 
 function renderStudents() {
+  if (gameState === GAME_STATE.CLASS_PREPARATION || !selected) return;
   const matrixOpen = el('student-detail').querySelector('details')?.open ?? false;
   for (const student of scenario.students) {
     const button = el<HTMLButtonElement>(student.id);
+    if (!button || !shownStates.has(student.id)) continue;
     button.setAttribute('aria-pressed', String(selected === student.id));
     button.setAttribute('aria-label', `${student.name}, ${shown.get(student.id)} % de compréhension`);
     button.querySelector('b')!.textContent = `${shown.get(student.id)} %`;
@@ -59,8 +77,8 @@ function renderStudents() {
     const last = document.createElement('p'); last.textContent = reactionFeedback.get(selected)!;
     el('student-detail').append(last);
   }
-  const reactionIds = student.reactionIds ?? scenario.archetypes.find(archetype => archetype.id === student.archetypeId)?.reactionIds ?? [];
-  const abilities = scenario.reactionAbilities?.filter(ability => reactionIds.includes(ability.id)) ?? [];
+  const reactionIds = student.progression?.unlockedAbilities ?? student.reactionIds ?? scenario.archetypes.find(archetype => archetype.id === student.archetypeId)?.reactionIds ?? [];
+  const abilities = scenario.reactionAbilities?.filter(ability => reactionIds.includes(ability.id)).map(a => effectiveAbility(student, a)) ?? [];
   if (abilities.length) {
     const info = document.createElement('p');
     info.textContent = `Réactions : ${reactionsUsed.get(selected) ?? 0} / ${createActionRules().maxReactionsPerStudent} utilisée ce round. Un élève décroché ou au repos ne réagit pas.`;
@@ -105,9 +123,45 @@ function renderStudents() {
   const table = document.createElement('table');
   table.innerHTML = '<caption>Ligne → colonne · −100 à +100</caption><thead><tr><th scope="col">Élève</th>' + scenario.students.map(s => '<th scope="col">' + s.name + '</th>').join('') + '</tr></thead><tbody>' + scenario.students.map(a => '<tr><th scope="row">' + a.name + '</th>' + scenario.students.map(b => '<td>' + (a.id === b.id ? '—' : getRelation(shownRelations, a.id, b.id)) + '</td>').join('') + '</tr>').join('') + '</tbody>';
   scroll.append(table); matrix.append(scroll); el('student-detail').append(matrix);
+  const p = student.progression;
+  if (p) {
+    const section = document.createElement('section');
+    const heading = document.createElement('h3'); heading.textContent = 'Progression RPG'; section.append(heading);
+    const info = document.createElement('p');
+    info.textContent = `Niveau ${p.level} · ${p.xp} XP${p.level < progressionRules.thresholds.length ? ' / ' + getRequiredXpForLevel(p.level + 1) : ' · niveau maximum'}${p.specialization ? ' · ' + specializations.find(s => s.id === p.specialization)!.name : ''}`;
+    section.append(info);
+    for (const a of abilityCatalog.filter(a => a.archetype === student.archetypeId)) {
+      const row = document.createElement('p');
+      row.textContent = `${p.unlockedAbilities.includes(a.id) ? '✓' : '🔒'} ${a.name} · niveau ${a.requiredLevel} · ${a.perRound}/round, ${a.perLesson}/leçon`;
+      section.append(row);
+    }
+    const trends = specializationTrends(student);
+    const trend = document.createElement('p'); trend.textContent = 'Tendance : ' + trends.map(t => `${t.name} ${t.percent} %`).join(' · '); section.append(trend);
+    if (p.level >= progressionRules.specializationLevel && !p.specialization && simulation.state === 'LESSON_FINISHED') {
+      for (const branch of trends) {
+        const definition = specializations.find(s => s.id === branch.id)!;
+        const description = document.createElement('p');
+        description.textContent = `${branch.name} : ${definition.usage.map(k => rewardLabels[k]).join(', ')} · puissance ×${definition.power}${definition.duration ? ', durée +' + definition.duration + ' round' : ''}. Les conditions de maîtrise et de relation restent applicables.`;
+        section.append(description);
+        const button = document.createElement('button'); button.type = 'button'; button.textContent = `Choisir ${branch.name}`;
+        button.disabled = busy;
+        button.addEventListener('click', () => {
+          simulation.chooseSpecialization(student.id, branch.id);
+          scenario.students = simulation.getResult().nextLessonStudents;
+          preparation.save();
+          note(`${student.name} choisit ${branch.name}.`); renderStudents();
+        }); section.append(button);
+      }
+    }
+    el('student-detail').append(section);
+  }
 }
+function buildLessonSeats() {
+  el('seats').replaceChildren();
+  el('seats').style.gridTemplateColumns = `repeat(${simulation.layoutSnapshot.columns}, minmax(0, 1fr))`;
 for (const student of scenario.students) {
-  const seat = scenario.classroom.seats.find(s => s.id === student.seatId)!;
+  const seat = new ClassroomLayoutSystem(simulation.layoutSnapshot).getStudentSeat(student.id);
+  if (!seat) continue;
   const button = document.createElement('button');
   button.id = student.id; button.className = `seat ${student.archetypeId}`;
   button.style.gridRow = String(seat.row + 1); button.style.gridColumn = String(seat.column + 1);
@@ -121,6 +175,8 @@ for (const student of scenario.students) {
   button.addEventListener('click', () => { selected = student.id; renderStudents(); renderTeacher(); });
   el('seats').append(button);
 }
+}
+
 function note(text: string) {
   const item = document.createElement('li'); item.textContent = text; log.prepend(item);
   while (log.children.length > 12) log.lastElementChild!.remove();
@@ -133,6 +189,7 @@ for (const student of scenario.students) {
   targetSelect.append(option);
 }
 function renderTeacher() {
+  if (gameState === GAME_STATE.CLASS_PREPARATION) { el('teacher-controls').hidden = true; return; }
   el('teacher-stats').textContent = `Pédagogie ${shownTeacher.pedagogy} · Autorité ${shownTeacher.authority}`;
   el('teacher-patience-label').textContent = `Patience ${shownTeacher.patience} / ${shownTeacher.maxPatience}`;
   el<HTMLProgressElement>('teacher-patience').max = shownTeacher.maxPatience || 1;
@@ -157,6 +214,17 @@ function renderTeacher() {
 actionSelect.addEventListener('change', renderTeacher);
 targetSelect.addEventListener('change', () => { selected = targetSelect.value; renderStudents(); renderTeacher(); });
 function syncControls() {
+  if (gameState === GAME_STATE.CLASS_PREPARATION) {
+    advance.disabled = preparation.system.validateLayout(scenario.students).length > 0;
+    advance.textContent = 'Lancer la leçon';
+    seed.disabled = false; restart.querySelector('button')!.disabled = false;
+    restart.querySelector('button')!.textContent = 'Préparation de classe';
+    el('phase').textContent = 'Préparation de classe';
+    el('status').textContent = 'Organisez les places, puis lancez la leçon avec cette disposition.';
+    el('teacher-sheet').hidden = true; el('teacher-controls').hidden = true;
+    return;
+  }
+  el('teacher-sheet').hidden = false;
   advance.disabled = busy || simulation.state !== 'ROUND_READY';
   seed.disabled = busy;
   restart.querySelector('button')!.disabled = busy;
@@ -167,6 +235,12 @@ function syncControls() {
     el('status').textContent = 'Consultez le bilan, puis confirmez votre intervention ou passez.';
     advance.textContent = 'Choisissez une intervention';
   } else if (simulation.state === 'LESSON_FINISHED') {
+    gameState = GAME_STATE.LESSON_RESULT;
+    const result = simulation.getResult();
+    scenario.students = result.nextLessonStudents;
+    if (result.classRelations) scenario.classRelations = result.classRelations;
+    preparation.save();
+    restart.querySelector('button')!.textContent = 'Préparer la prochaine leçon';
     el('phase').textContent = 'Leçon terminée'; el('status').textContent = 'Chaque élève a son résultat. Sélectionnez un pupitre pour le consulter.';
     advance.textContent = 'Leçon terminée';
   } else {
@@ -217,13 +291,13 @@ function renderRoundResult(before: StudentLessonState[], events: GameEvent[]) {
 }
 el<HTMLFormElement>('teacher-form').addEventListener('submit', async event => {
   event.preventDefault();
-  if (busy || simulation.state !== 'TEACHER_INTERVENTION') return;
+  if (gameState === GAME_STATE.CLASS_PREPARATION || busy || simulation.state !== 'TEACHER_INTERVENTION') return;
   const kind = actionSelect.value as TeacherActionKind;
   const action: TeacherAction = kind === 'PASS' || kind === 'BREAK' ? { kind } : { kind, targetId: selected };
   busy = true; syncControls();
   try { await showEvents(simulation.applyTeacherAction(action)); }
   catch (error) { note(error instanceof Error ? error.message : 'Intervention impossible.'); }
-  finally { busy = false; syncControls(); }
+  finally { busy = false; syncControls(); renderStudents(); }
 });
 function clearActionFeedback() {
   document.querySelectorAll('.seat').forEach(seat => {
@@ -236,11 +310,35 @@ function feedback(studentId: string, text: string) {
 }
 async function showEvents(events: GameEvent[]) {
   for (const event of events) {
-    if (event.type === 'ROUND_STARTED') {
+    if (event.type === 'LESSON_RESULTS') {
+      scenario.students = simulation.persistentStudents;
+      el('round-result').hidden = true;
+      const panel = lessonPanel; panel.replaceChildren(); panel.hidden = false;
+      restart.querySelector('button')!.textContent = 'Leçon suivante';
+      const title = document.createElement('h2'); title.textContent = 'Bilan de la leçon'; panel.append(title);
+      for (const result of event.results) {
+        const p = result.progression; if (!p) continue;
+        const row = document.createElement('p');
+        row.textContent = `${studentName(result.studentId)} · compréhension ${result.understanding} % · +${p.xpGained} XP · niveau ${p.beforeLevel} → ${p.afterLevel} · total ${p.xp} XP`;
+        const details = document.createElement('small'); details.textContent = Object.entries(p.rewards).map(([k,v]) => `${rewardLabels[k as keyof typeof rewardLabels]} +${v}`).join(' · ');
+        row.append(document.createElement('br'), details);
+        if (p.unlockedAbilities.length) row.append(document.createElement('br'), 'Compétences apprises : ' + p.unlockedAbilities.map(id => abilityCatalog.find(a => a.id === id)!.name).join(', '));
+        panel.append(row);
+      }
+      renderStudents();
+    } else if (event.type === 'XP_GAINED') {
+      note(`${studentName(event.studentId)} gagne ${event.amount} XP.`);
+    } else if (event.type === 'STUDENT_LEVEL_UP') {
+      note(`${studentName(event.studentId)} : niveau ${event.oldLevel} → ${event.newLevel}.`);
+    } else if (event.type === 'ABILITY_UNLOCKED') {
+      note(`${studentName(event.studentId)} apprend ${abilityCatalog.find(a => a.id === event.abilityId)?.name ?? event.abilityId}.`);
+    } else if (event.type === 'SPECIALIZATION_AVAILABLE') {
+      note(`${studentName(event.studentId)} peut choisir sa spécialisation dans sa fiche.`);
+    } else if (event.type === 'ROUND_STARTED') {
       activeChapterId = event.chapterId; reactionFeedback.clear(); reactionsUsed.clear(); renderStudents();
     } else if (event.type === 'REACTION_EVALUATED' && event.reason !== 'eligible') {
       const reason = event.reason === 'mastery' ? `maîtrise insuffisante (${event.mastery} %, cible ${event.targetMastery} %, minimum ${event.minimum} %)`
-        : event.reason === 'relation' ? 'relation insuffisante' : event.reason === 'noEffect' ? 'aucun effet utile dans cette situation' : 'aucune occasion positive au tirage de moral';
+        : event.reason === 'locked' ? 'compétence verrouillée' : event.reason === 'abilityLimit' ? 'limite d’utilisation atteinte' : event.reason === 'relation' ? 'relation insuffisante' : event.reason === 'noEffect' ? 'aucun effet utile dans cette situation' : 'aucune occasion positive au tirage de moral';
       reactionFeedback.set(event.sourceId, `Dernière occasion avec ${studentName(event.targetId)} : ${reason}.`);
       renderStudents();
     } else if (event.type === 'BEHAVIOR_APPLIED') {
@@ -353,7 +451,7 @@ async function showEvents(events: GameEvent[]) {
   clearActionFeedback();
 }
 async function advanceLesson() {
-  if (busy || simulation.state !== 'ROUND_READY') return;
+  if (gameState === GAME_STATE.CLASS_PREPARATION || busy || simulation.state !== 'ROUND_READY') return;
   busy = true; syncControls();
   try {
     if (simulation.state === 'ROUND_READY') {
@@ -372,23 +470,46 @@ async function advanceLesson() {
   } catch (error) { note(error instanceof Error ? error.message : 'La leçon a rencontré une erreur.'); }
   finally { clearActionFeedback(); busy = false; syncControls(); }
 }
-advance.addEventListener('click', () => { void advanceLesson(); });
+advance.addEventListener('click', () => { if (gameState === GAME_STATE.CLASS_PREPARATION) startLesson(); else void advanceLesson(); });
+function startLesson() {
+  if (!restart.reportValidity()) return;
+  try { simulation = new Simulation(preparation.prepareLesson(), Number(seed.value)); }
+  catch (error) { el('status').textContent = (error as Error).message; return; }
+  preparationView?.destroy(); preparationView = undefined;
+  gameState = GAME_STATE.LESSON;
+  lessonPanel.hidden = true; el('round-result').hidden = true;
+  shownRelations = simulation.classRelations!;
+  reactionsUsed.clear(); reactionFeedback.clear();
+  activeChapterId = scenario.lesson.chapters[0]!.id;
+  completedRounds = 0; shownTeacher = simulation.teacherState; actionSelect.value = 'ENCOURAGE';
+  shownStates = new Map(simulation.studentStates.map(s => [s.studentId,s]));
+  shown = new Map(simulation.studentStates.map(s => [s.studentId,0]));
+  selected = simulation.studentStates[0]?.studentId ?? '';
+  log.replaceChildren(); note('La leçon commence avec le placement choisi.');
+  el('chapter').textContent = scenario.lesson.chapters[0]!.name;
+  el('chapter-count').textContent = `CHAPITRE 1 / ${scenario.lesson.chapters.length}`;
+  el<HTMLProgressElement>('lesson-progress').value = 0;
+  buildLessonSeats();
+  targetSelect.replaceChildren();
+  for (const student of scenario.students.filter(s => shownStates.has(s.id))) {
+    const option = document.createElement('option'); option.value = student.id; option.textContent = student.name; targetSelect.append(option);
+  }
+  if (selected) renderStudents(); syncControls();
+}
+function enterPreparation() {
+  gameState = GAME_STATE.CLASS_PREPARATION;
+  preparationView?.destroy();
+  lessonPanel.hidden = true; el('round-result').hidden = true;
+  preparationView = new ClassroomPreparationView(preparation, el('seats'), el('student-detail'));
+  el('chapter-count').textContent = 'AVANT LA LEÇON';
+  el<HTMLProgressElement>('lesson-progress').value = 0;
+  syncControls();
+}
 restart.addEventListener('submit', event => {
   event.preventDefault(); if (busy || !restart.reportValidity()) return;
-  simulation = new Simulation(scenario, Number(seed.value));
-  shownRelations = simulation.classRelations!;
-  reactionsUsed.clear();
-  activeChapterId = scenario.lesson.chapters[0]!.id; reactionFeedback.clear();
-  completedRounds = 0; shownTeacher = simulation.teacherState; actionSelect.value = 'ENCOURAGE';
-  el('round-result').hidden = true;
-  shownStates = new Map(simulation.studentStates.map(s => [s.studentId,s]));
-  shown = new Map(scenario.students.map(s => [s.id, 0]));
-  log.replaceChildren(); note('Une nouvelle leçon commence.');
-  el('chapter').textContent = 'Découvrir'; el('chapter-count').textContent = 'CHAPITRE 1 / 2';
-  el<HTMLProgressElement>('lesson-progress').value = 0;
-  renderStudents(); syncControls();
+  enterPreparation();
 });
-renderStudents(); syncControls();
+enterPreparation();
 const lessonStats = document.createElement('p');
 lessonStats.className = 'lesson-stats';
 lessonStats.textContent = `Complexité ${scenario.lesson.complexity} · Pression ${scenario.lesson.pressure} · Objectif individuel ${scenario.lesson.requiredProgress}`;
@@ -408,16 +529,16 @@ if (context) {
     try {
       void Promise.resolve(context.registerTool({
         name: readOnly ? 'read_classroom' : 'advance_lesson',
-        description: readOnly ? 'Lire la phase et la compréhension affichée des neuf élèves.' : 'Lancer un round lorsque la classe est prête, et attendre son affichage. Les interventions se choisissent dans le formulaire.',
+        description: readOnly ? 'Lire la phase et la compréhension affichée des élèves.' : 'Lancer un round lorsque la classe est prête, et attendre son affichage. Les interventions se choisissent dans le formulaire.',
         inputSchema: { type: 'object', properties: {}, additionalProperties: false },
         annotations: { readOnlyHint: readOnly },
         async execute(input: unknown) {
           if (!input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).length) throw new Error('Objet vide attendu.');
           if (!readOnly) {
-            if (busy || simulation.state !== 'ROUND_READY') throw new Error('La leçon ne peut pas avancer maintenant.');
+            if (gameState === GAME_STATE.CLASS_PREPARATION || busy || simulation.state !== 'ROUND_READY') throw new Error('La leçon ne peut pas avancer maintenant.');
             await advanceLesson();
           }
-          return { phase: simulation.state, busy, students: Object.fromEntries(shown) };
+          return { phase: gameState === GAME_STATE.CLASS_PREPARATION ? gameState : simulation.state, busy, students: Object.fromEntries(shown) };
         },
       }, { signal: lifecycle.signal })).catch(() => {});
     } catch { /* Le jeu reste utilisable si le registre facultatif est indisponible. */ }

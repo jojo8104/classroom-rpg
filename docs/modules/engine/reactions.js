@@ -1,10 +1,16 @@
+import { behaviorCandidate, weightedChoice, getRelation, relationThreshold, validateSocial } from './social.js';
 import { validateLearningRules } from '../data/learningRules.js';
 import { validateInteractionRules } from '../data/interactionRules.js';
 import { chapterMastery, checkMorale, masteryAccess } from './interactions.js';
 import { moraleMultiplier, roundValue } from './combat.js';
 import { applyTemporaryEffect, effectiveStats } from './effects.js';
+import { AbilityUsage, effectiveAbility } from './abilities.js';
+import { abilities as catalog } from '../data/abilities.js';
+import { ClassroomLayoutSystem, layoutFromClassroom } from '../systems/ClassroomLayoutSystem.js';
 export function validateReactionSetup(students, setup) {
-    const errors = [];
+    const errors = validateSocial(students, setup.classRelations);
+    if (setup.classRelations && !setup.interactionRules)
+        errors.push('Les comportements sociaux exigent les règles de moral et de maîtrise.');
     if (setup.learningRules) {
         try {
             validateLearningRules(setup.learningRules);
@@ -77,9 +83,7 @@ export function validateReactionSetup(students, setup) {
     return errors;
 }
 export function areAdjacent(left, right, classroom) {
-    const a = classroom.seats.find(seat => seat.id === left.seatId);
-    const b = classroom.seats.find(seat => seat.id === right.seatId);
-    return left.id !== right.id && !!a && !!b && Math.abs(a.row - b.row) + Math.abs(a.column - b.column) === 1;
+    return ClassroomLayoutSystem.getNeighbors(classroom.currentLayout ?? layoutFromClassroom(classroom, [left, right]), left.id).direct.includes(right.id);
 }
 export function relationBetween(left, right, relations) {
     return relations.find(relation => relation.studentIds.includes(left) && relation.studentIds.includes(right))?.value ?? 0;
@@ -98,22 +102,29 @@ export function resolveReactionWindow(context) {
     const interactionRules = setup.interactionRules;
     if (interactionRules && !context.behavior)
         throw new Error('Contexte comportemental manquant.');
-    const seat = (id) => setup.classroom.seats.find(s => s.id === students.find(student => student.id === id).seatId);
+    const layout = setup.classroom.currentLayout ?? layoutFromClassroom(setup.classroom, students);
+    const seat = (id) => layout.seats.find(s => s.studentId === id);
     const ordered = [...students].sort((a, b) => seat(a.id).row - seat(b.id).row || seat(a.id).column - seat(b.id).column);
     for (const student of ordered) {
         const state = states.get(student.id);
         if (!state || state.concentration <= 0 || resting.has(student.id) || !areAdjacent(student, target, setup.classroom))
             continue;
-        const relation = relationBetween(student.id, target.id, setup.relations);
+        const relation = setup.classRelations ? getRelation(setup.classRelations, student.id, target.id) : relationBetween(student.id, target.id, setup.relations);
         if (!interactionRules && relation <= 0)
             continue;
-        const ids = student.reactionIds ?? setup.archetypes.find(archetype => archetype.id === student.archetypeId)?.reactionIds ?? [];
+        const ids = student.progression ? catalog.filter(a => a.archetype === student.archetypeId).map(a => a.id) : student.reactionIds ?? setup.archetypes.find(archetype => archetype.id === student.archetypeId)?.reactionIds ?? [];
         const available = setup.abilities.filter(ability => ids.includes(ability.id) && ability.window === window && !resolvedEffects.has(effectKey(ability)))
+            .map(ability => effectiveAbility(student, ability))
             .sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
         const checks = interactionRules && available.length ? checkMorale(student.id, effectiveStats(student, state).morale, context.behavior.random, interactionRules, events, window, target.id) : undefined;
         const mastery = interactionRules ? chapterMastery(state, lesson, context.behavior.chapterId) : 100;
         const targetMastery = interactionRules ? chapterMastery(targetState, lesson, context.behavior.chapterId) : 100;
         for (const ability of available) {
+            const unavailable = (setup.abilityUsage ?? new AbilityUsage()).reason(student, ability.id);
+            if (unavailable) {
+                events.push({ type: 'REACTION_EVALUATED', sourceId: student.id, targetId: target.id, abilityId: ability.id, window, reason: unavailable, mastery, targetMastery, minimum: ability.mastery?.minimum ?? 0, modifier: 0 });
+                continue;
+            }
             let powerModifier = 1;
             let noEffect = false;
             if (interactionRules) {
@@ -125,7 +136,7 @@ export function resolveReactionWindow(context) {
                     ability.effect === 'COMBINED_ATTACK' && (rules.workScale <= 0 || effectiveStats(student, state).intelligence <= 0 || effectiveStats(target, targetState).intelligence <= 0) ||
                     ability.effect === 'APPLY_TEMPORARY_EFFECT' && (roundValue(ability.value * relation / 100 * powerModifier) <= 0 ||
                         window === 'AFTER_STUDENT_ATTACK' && !context.attackSucceeded || effectiveStats(target, targetState)[ability.stat] >= 100);
-                const reason = !checks.positive ? 'morale' : relation <= 0 || relation < ability.minRelation ? 'relation' : !access.allowed ? 'mastery' : noEffect ? 'noEffect' : 'eligible';
+                const reason = !checks.positive ? 'morale' : relation <= 0 || relation < (setup.classRelations ? relationThreshold(student, ability.minRelation, ability.effect === 'COMBINED_ATTACK') : ability.minRelation) ? 'relation' : !access.allowed ? 'mastery' : noEffect ? 'noEffect' : 'eligible';
                 events.push({ type: 'REACTION_EVALUATED', sourceId: student.id, targetId: target.id, abilityId: ability.id,
                     window, reason, mastery, targetMastery, minimum: access.minimum, modifier: powerModifier });
                 if (reason !== 'eligible')
@@ -148,7 +159,7 @@ export function resolveReactionWindow(context) {
                 if (effectiveStats(target, targetState)[ability.stat] >= 100)
                     continue;
             }
-            if (ids.includes(ability.id) && ability.window === window && relation >= ability.minRelation) {
+            if (ids.includes(ability.id) && ability.window === window && relation >= (setup.classRelations ? relationThreshold(student, ability.minRelation, ability.effect === 'COMBINED_ATTACK') : ability.minRelation)) {
                 candidates.push({ actorId: student.id, targetId: target.id, ability, relation, powerModifier, depth: context.depth });
             }
         }
@@ -170,14 +181,29 @@ export function resolveReactionWindow(context) {
             (ability.window === window || window === 'BEFORE_STUDENT_ATTACK' && ability.window === 'DURING_STUDENT_ATTACK') &&
             candidate.relation >= ability.minRelation);
     }).map(candidate => candidate.actorId));
+    if (setup.classRelations && context.behavior) {
+        const pool = candidates.map(candidate => ({ candidate, ...behaviorCandidate(students.find(s => s.id === candidate.actorId), targetState, candidate.ability.id, candidate.relation) }));
+        for (const item of pool) {
+            const { candidate: _, ...detail } = item;
+            events.push({ type: 'BEHAVIOR_CANDIDATE_CREATED', ...detail });
+        }
+        candidates.length = 0;
+        while (pool.length) {
+            const chosen = weightedChoice(pool, context.behavior.random);
+            candidates.push(chosen.candidate);
+            pool.splice(pool.indexOf(chosen), 1);
+        }
+    }
     for (const candidate of candidates) {
-        if (candidate.ability.effect === 'REDUCE_COMPLEXITY' && comboPartners.has(candidate.actorId))
+        if (!setup.classRelations && candidate.ability.effect === 'REDUCE_COMPLEXITY' && comboPartners.has(candidate.actorId))
             continue;
         const reason = queue.enqueueReaction(candidate);
         if (reason) {
             events.push({ type: 'REACTION_LIMIT_REACHED', sourceId: candidate.actorId, targetId: target.id, reason });
             continue;
         }
+        if (setup.classRelations)
+            events.push({ type: 'BEHAVIOR_SELECTED', ...behaviorCandidate(students.find(s => s.id === candidate.actorId), targetState, candidate.ability.id, candidate.relation) });
         // Une réaction par fenêtre ; une seule protection et un soutien par statistique
         // sur ce tour. Les autres élèves conservent leur disponibilité.
         break;
@@ -187,11 +213,12 @@ export function resolveReactionWindow(context) {
         const source = students.find(student => student.id === reaction.actorId);
         const state = effectiveStats(source, states.get(source.id));
         const ability = reaction.ability;
+        setup.abilityUsage?.consume(source, ability.id);
         const powerModifier = reaction.powerModifier ?? 1;
         let before;
         let after;
         if (ability.effect === 'COMBINED_ATTACK') {
-            context.modifiers.combined = { partner: state, synergyRatio: ability.synergy * reaction.relation / 100 * powerModifier };
+            context.modifiers.combined = { partner: state, synergyRatio: ability.synergy * reaction.relation / 100 * powerModifier, ...(source.progression ? { abilityId: ability.id } : {}) };
             resolvedEffects.add(effectKey(ability));
             events.push({ type: 'COMBINED_ATTACK_STARTED', sourceId: source.id, targetId: target.id,
                 abilityId: ability.id, relation: reaction.relation });
@@ -221,5 +248,7 @@ export function resolveReactionWindow(context) {
         events.push({ type: 'REACTION_TRIGGERED', sourceId: source.id, targetId: reaction.targetId,
             abilityId: ability.id, window, effect: ability.effect,
             relation: reaction.relation, before, after });
+        if (source.progression)
+            events.push({ type: 'ABILITY_USED', studentId: source.id, targetId: target.id, abilityId: ability.id, effective: before !== after });
     }
 }

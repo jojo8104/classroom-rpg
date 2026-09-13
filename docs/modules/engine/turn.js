@@ -1,3 +1,4 @@
+import { difficultyLoss } from './social.js';
 import { changeMorale } from './resources.js';
 import { chapterCapacity, combinedGain, pressureDamage, roundValue, workGain } from './combat.js';
 import { effectiveStats } from './effects.js';
@@ -20,7 +21,7 @@ function resolveRetaliation(context) {
     if (context.learningRules && damage > 0) {
         const loss = roundValue(Math.min(context.learningRules.maxRetaliationMoraleLoss, damage * context.learningRules.damageMoraleRatio));
         if (loss > 0)
-            changeMorale(state, state.morale - loss, events, 'retaliation');
+            changeMorale(state, state.morale - (context.social ? difficultyLoss(student, loss) : loss), events, 'retaliation');
     }
 }
 // Chaque yield suspend réellement le tour. L'appelant pourra résoudre les réactions
@@ -50,6 +51,8 @@ export function* resolveWorkTurn(context) {
         resolveProgress(context, result.potentialGain);
         events.push({ type: 'COMBINED_ATTACK_RESOLVED', sourceId: partner.id, targetId: student.id,
             ...result, appliedProgress: roundValue(chapter.progress - before) });
+        if (combination.abilityId)
+            events.push({ type: 'ABILITY_USED', studentId: partner.id, targetId: student.id, abilityId: combination.abilityId, effective: chapter.progress > before });
     }
     else
         resolveProgress(context, gain);

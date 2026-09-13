@@ -4,9 +4,9 @@ import { roundValue } from './combat.js';
 export function disruptionChance(student, state) {
     return (student.disruptionChance ?? 0) * (1 - effectBonus(state, 'disruptionReduction') / 100);
 }
-export function resolveDisruption(source, students, classroom, context, states, random, events, changeConcentration) {
+export function resolveDisruption(source, students, classroom, context, states, random, events, changeConcentration, selectedTarget) {
     const neighbors = students.filter(student => areAdjacent(source, student, classroom));
-    const target = neighbors[random.integer(neighbors.length)];
+    const target = selectedTarget ? neighbors.find(s => s.id === selectedTarget) : neighbors[random.integer(neighbors.length)];
     const state = states.get(target.id);
     const power = context.rules.disruptionPower;
     const afterAuthority = roundValue(power * (1 - context.teacher.authority / 100));

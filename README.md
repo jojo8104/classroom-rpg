@@ -1,4 +1,18 @@
-# Classroom RPG — Roadmap 2 en cours
+# Classroom RPG — Roadmap 4
+
+Le prototype local intègre la progression RPG : XP persistante entre leçons,
+niveaux 1–5, douze compétences et six spécialisations choisies explicitement.
+La fiche élève et le bilan expliquent la progression. Après la clôture,
+« Leçon suivante » conserve XP, compétences, usage et relations ; recharger la
+page réinitialise le prototype, sans sauvegarde disque à ce stade.
+
+La personnalité peut assouplir certaines relations et orienter le choix, jamais
+contourner la maîtrise, le déblocage ou les limites de compétence.
+
+`npm run simulate:progression` simule dix élèves sur vingt leçons et produit un
+rapport JSON. L'intégration, les paramètres et les observations sont documentés
+dans [VALIDATION_ROADMAP4.md](VALIDATION_ROADMAP4.md). Les sections suivantes
+conservent aussi l'historique des Roadmaps précédentes.
 
 Jouer : https://jojo8104.github.io/classroom-rpg/
 
@@ -321,3 +335,10 @@ Pour enchaîner deux séances, transmettre `result.nextLessonStudents` et
 retourne des snapshots et ne sauvegarde pas automatiquement sur disque.
 Les anciennes paires réciproques peuvent être converties par `migrateRelations` ;
 les scénarios sans état social explicite conservent leurs règles historiques.
+
+
+## Préparation de classe — Roadmap 6
+
+Avant chaque leçon : consulter les acquis et relations, déplacer les élèves (glisser-déposer ou sélection au clavier), verrouiller les places, sauvegarder ou réinitialiser. « Lancer la leçon » valide et copie le plan ; les interactions suivent alors les voisins réels. Le placement, les connaissances, les relations et la progression sont conservés sur cet appareil.
+
+Voir [la roadmap](roadmap6.md) et [les détails de validation et limites](VALIDATION_ROADMAP6.md). Le prototype reste en 3×3 ; la logique de placement est testée avec d’autres dimensions.

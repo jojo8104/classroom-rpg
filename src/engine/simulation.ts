@@ -7,6 +7,13 @@ import { validateScenario } from './validation.js';
 import { createLessonStates } from './combat.js';
 import { createTeacherRules, validateTeacherRules, type TeacherRules } from '../data/teacherRules.js';
 import { previewTeacherAction, resolveTeacherAction, type TeacherActionPreview } from './teacher.js';
+import { AbilityUsage } from './abilities.js';
+import { abilities, type SpecializationId } from '../data/abilities.js';
+import { settleProgression, selectSpecialization } from './progression.js';
+
+import { ClassroomLayoutSystem, layoutFromClassroom } from '../systems/ClassroomLayoutSystem.js';
+import type { ClassroomLayout } from '../models/ClassroomLayout.js';
+import { getSeatPreferenceModifier } from '../systems/PlacementEvaluationSystem.js';
 
 export type LessonState = 'ROUND_READY' | 'ROUND_RESOLVING' | 'ROUND_RESULT' |
   'TEACHER_INTERVENTION' | 'LESSON_FINISHED';
@@ -35,24 +42,47 @@ export class Simulation {
   private teacher: TeacherState;
   private teacherRules: TeacherRules;
   private decisions: TeacherAction[] = [];
+  private abilityUsage = new AbilityUsage();
+  private lessonResults: LessonResult[] | undefined;
+
+  private readonly absentStudents: PrototypeScenario['students'];
+  private readonly absentRelations: import('../domain.js').DirectedRelation[];
+  get layoutSnapshot(): ClassroomLayout { return structuredClone(this.scenario.classroom.currentLayout!); }
 
   constructor(scenario: PrototypeScenario, seed: number, rules = createActionRules(), teacherRules = createTeacherRules()) {
     const errors = validateScenario(scenario);
     if (errors.length) throw new Error(errors.join('\n'));
     this.scenario = structuredClone(scenario);
+    this.absentStudents = this.scenario.students.filter(s => s.present === false);
+    const activeIds = new Set(this.scenario.students.filter(s => s.present !== false).map(s => s.id));
+    this.absentRelations = this.scenario.classRelations?.links.filter(l => !activeIds.has(l.from) || !activeIds.has(l.to)) ?? [];
+    const layout = layoutFromClassroom(this.scenario.classroom, this.scenario.students);
+    for (const seat of layout.seats) if (seat.studentId && !activeIds.has(seat.studentId)) seat.studentId = null;
+    this.scenario.classroom.currentLayout = layout;
+    this.scenario.students = this.scenario.students.filter(s => activeIds.has(s.id));
+    if (this.scenario.classRelations) this.scenario.classRelations.links = this.scenario.classRelations.links.filter(l => activeIds.has(l.from) && activeIds.has(l.to));
+    if (this.scenario.relations) this.scenario.relations = this.scenario.relations.filter(r => r.studentIds.every(id => activeIds.has(id)));
+    if (this.scenario.students.some(s => s.progression)) {
+      const catalog = abilities.flatMap(a => a.mode === 'REACTION' ? [a.reaction] : []);
+      this.scenario.reactionAbilities = [...(this.scenario.reactionAbilities ?? []).filter(a => !catalog.some(c => c.id === a.id)), ...structuredClone(catalog)];
+    }
     this.rules = structuredClone(rules);
     validateTeacherRules(teacherRules);
     this.teacherRules = structuredClone(teacherRules);
     this.teacher = { ...structuredClone(scenario.teacher), maxPatience: scenario.teacher.maxPatience ?? scenario.teacher.patience };
     this.seed = seed;
     this.random = new SeededRandom(seed);
-    const seats = new Map(scenario.classroom.seats.map(seat => [seat.id, seat]));
+    const seats = new ClassroomLayoutSystem(layout);
     this.scenario.students.sort((a, b) => {
-      const left = seats.get(a.seatId)!;
-      const right = seats.get(b.seatId)!;
+      const left = seats.getStudentSeat(a.id)!;
+      const right = seats.getStudentSeat(b.id)!;
       return left.row - right.row || left.column - right.column;
     });
     this.students = createLessonStates(this.scenario.students, this.scenario.lesson);
+    for (const state of this.students) {
+      const student = this.scenario.students.find(s => s.id === state.studentId)!;
+      state.morale = Math.max(0, Math.min(100, state.morale + getSeatPreferenceModifier(student, seats.getStudentSeat(student.id)!)));
+    }
     validateActionRules(this.rules, this.students.length);
     for (const student of this.scenario.students) {
       if (!Object.hasOwn(this.rules.supportChanceByArchetype, student.archetypeId)) {
@@ -63,7 +93,14 @@ export class Simulation {
     this.emit({ type: 'CHAPTER_STARTED' });
   }
 
-  get classRelations(): import('../domain.js').ClassRelations | undefined { return structuredClone(this.scenario.classRelations); }
+  get classRelations(): import('../domain.js').ClassRelations | undefined { return this.scenario.classRelations ? { links: structuredClone([...this.scenario.classRelations.links, ...this.absentRelations]) } : undefined; }
+  get persistentStudents(): PrototypeScenario['students'] { return structuredClone([...this.scenario.students, ...this.absentStudents]); }
+  chooseSpecialization(studentId: string, id: SpecializationId): void {
+    this.requireState('LESSON_FINISHED');
+    const student = this.scenario.students.find(s => s.id === studentId);
+    if (!student) throw new Error('Élève inconnu.');
+    this.emit(selectSpecialization(student, id));
+  }
   get state(): LessonState { return this.phase; }
   get events(): GameEvent[] { return structuredClone(this.history); }
   get studentStates(): StudentLessonState[] { return structuredClone(this.students); }
@@ -103,7 +140,7 @@ export class Simulation {
     this.emit({ type: 'ROUND_STARTED' });
     const result = resolveActionRound(this.scenario.students, this.students, this.random, this.rules,
       this.scenario.lesson, this.scenario.lesson.chapters[this.chapterIndex]!.id,
-      { learningRules: this.scenario.learningRules, interactionRules: this.scenario.interactionRules, classroom: this.scenario.classroom, archetypes: this.scenario.archetypes,
+      { abilityUsage: this.abilityUsage, learningRules: this.scenario.learningRules, interactionRules: this.scenario.interactionRules, classroom: this.scenario.classroom, archetypes: this.scenario.archetypes,
         classRelations: this.scenario.classRelations, relations: this.scenario.relations ?? [], abilities: this.scenario.reactionAbilities ?? [] },
       { teacher: this.teacher, rules: this.teacherRules });
     this.students = result.students;
@@ -147,6 +184,28 @@ export class Simulation {
       if (this.chapterIndex === this.scenario.lesson.chapters.length - 1) {
         this.phase = 'LESSON_FINISHED';
         this.emit({ type: 'LESSON_ENDED', results: this.individualResults() });
+        this.lessonResults = this.individualResults();
+        // Socle de connaissances : consolidation modérée, une seule fois par leçon.
+        for (const student of this.scenario.students) {
+          if (!student.knowledge) continue;
+          const understanding = this.lessonResults.find(r => r.studentId === student.id)!.understanding;
+          for (const concept of this.scenario.lesson.conceptIds) {
+            const before = student.knowledge[concept] ?? 0;
+            student.knowledge[concept] = Math.round((before + Math.max(0, understanding - before) * 0.15) * 100) / 100;
+          }
+        }
+        const progressionEvents: GameEventPayload[] = [];
+        for (const student of this.scenario.students) {
+          if (!student.progression) continue;
+          const result = this.lessonResults.find(r => r.studentId === student.id)!;
+          const settled = settleProgression(student, this.history, result.understanding);
+          result.progression = settled.result;
+          progressionEvents.push(...settled.events);
+        }
+        if (progressionEvents.length) {
+          this.emit({ type: 'LESSON_RESULTS', results: structuredClone(this.lessonResults) });
+          for (const event of progressionEvents) this.emit(event);
+        }
         return;
       }
       this.chapterIndex++;
@@ -157,6 +216,7 @@ export class Simulation {
   }
 
   private individualResults(): LessonResult[] {
+    if (this.lessonResults) return structuredClone(this.lessonResults);
     return this.students.map(student => ({ studentId: student.studentId,
       lessonId: this.scenario.lesson.id, understanding: student.lessonUnderstanding,
       chapters: structuredClone(student.chapters), concentration: student.concentration, morale: student.morale }));
@@ -165,8 +225,9 @@ export class Simulation {
   getResult(): SimulationResult {
     this.requireState('LESSON_FINISHED');
     // Nouvelle séance : concentration restaurée, moral conservé. L'historique reste dans results.
-    const nextLessonStudents = this.scenario.students.map(student => ({ ...student, concentration: 100,
+    const nextLessonStudents = this.scenario.students.map(student => ({ ...structuredClone(student), concentration: 100,
       morale: this.students.find(state => state.studentId === student.id)!.morale }));
+    nextLessonStudents.push(...structuredClone(this.absentStudents));
     return { ...(this.scenario.classRelations ? { classRelations: this.classRelations! } : {}), seed: this.seed, results: this.individualResults(), events: this.events, nextLessonStudents,
       teacher: this.teacherState, decisions: structuredClone(this.decisions) };
   }

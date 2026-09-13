@@ -1,5 +1,6 @@
 // Les définitions persistantes sont séparées de l'état temporaire d'une séance.
 export interface Student {
+  progression?: import('./engine/progression.js').StudentProgression;
   personality?: PersonalityProfile;
   id: string;
   name: string;
@@ -8,7 +9,11 @@ export interface Student {
   concentration: number;
   morale: number;
   archetypeId: string;
-  seatId: string;
+  /** Anciennes sauvegardes uniquement ; le layout est la source de vérité. */
+  seatId?: string | undefined;
+  present?: boolean;
+  seatPreferences?: { likes: string[]; dislikes: string[] };
+  knowledge?: Record<string, number>;
   reactionIds?: string[];
   disruptionChance?: number;
 }
@@ -88,6 +93,8 @@ export interface Seat {
 }
 
 export interface Classroom {
+  currentLayout?: import('./models/ClassroomLayout.js').ClassroomLayout;
+  defaultLayout?: import('./models/ClassroomLayout.js').ClassroomLayout;
   id: string;
   rows: number;
   columns: number;
@@ -143,6 +150,7 @@ export interface ChapterProgress {
 }
 
 export interface LessonResult {
+  progression?: import('./engine/progression.js').ProgressionResult;
   chapters: ChapterProgress[];
   concentration: number;
   morale: number;

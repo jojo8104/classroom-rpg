@@ -1,5 +1,6 @@
 import type { PrototypeScenario } from '../domain.js';
 import type { SimulationResult } from '../engine/simulation.js';
+import { rewardLabels } from '../data/progressionRules.js';
 
 export function formatJournal(scenario: PrototypeScenario, result: SimulationResult): string {
   const names = new Map(scenario.students.map(student => [student.id, student.name]));
@@ -7,6 +8,14 @@ export function formatJournal(scenario: PrototypeScenario, result: SimulationRes
   const lines: string[] = [];
   for (const event of result.events) {
     switch (event.type) {
+      case 'ABILITY_USED': lines.push(`  ${name(event.studentId)} utilise ${event.abilityId} : ${event.effective ? 'effet utile' : 'sans effet'}`); break;
+      case 'XP_GAINED': lines.push(`${name(event.studentId)} +${event.amount} XP : ` + Object.entries(event.rewards).map(([k,v]) => `${rewardLabels[k as keyof typeof rewardLabels]} +${v}`).join(' · ')); break;
+      case 'STUDENT_LEVEL_UP': lines.push(`${name(event.studentId)} niveau ${event.oldLevel} → ${event.newLevel}`); break;
+      case 'ABILITY_UNLOCKED': lines.push(`${name(event.studentId)} apprend ${event.abilityId} (${event.source})`); break;
+      case 'ARCHETYPE_USAGE_UPDATED': lines.push(`${name(event.studentId)} usage : ${JSON.stringify(event.usage)}`); break;
+      case 'SPECIALIZATION_AVAILABLE': lines.push(`${name(event.studentId)} peut se spécialiser : ${event.suggestions.map(s => `${s.name} ${s.percent} %`).join(' · ')}`); break;
+      case 'SPECIALIZATION_SELECTED': lines.push(`${name(event.studentId)} choisit ${event.specializationId}`); break;
+      case 'LESSON_RESULTS': lines.push('BILAN RPG'); break;
       case 'BEHAVIOR_CANDIDATE_CREATED':
       case 'BEHAVIOR_SELECTED': lines.push('  ' + (event.type === 'BEHAVIOR_SELECTED' ? 'CHOIX' : 'CANDIDAT') + ' ' + name(event.actorId) + ' → ' + name(event.targetId) + ' · ' + event.action + ' · base ' + event.baseWeight + ' · relation ' + event.relationModifier + ' · personnalité ' + event.personalityModifier + ' · contexte ' + event.contextModifier + ' · maîtrise ' + event.masteryValid + ' · poids ' + event.finalWeight); break;
       case 'RELATION_CHANGED': lines.push('  Relation ' + name(event.from) + ' → ' + name(event.to) + ' : ' + event.before + ' → ' + event.after + ' (' + event.reason + ')'); break;

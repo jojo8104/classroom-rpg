@@ -1,11 +1,15 @@
 import { statBounds } from '../data/rules.js';
 import { validateReactionSetup } from './reactions.js';
+import { validateProgression } from './progression.js';
+import { validateLayout } from '../systems/ClassroomLayoutSystem.js';
 // Retourner toutes les erreurs permet de corriger un scénario en une seule passe.
 export function validateScenario(scenario) {
     const errors = [];
     const { classroom, students, lesson } = scenario;
+    if (classroom.currentLayout)
+        errors.push(...validateLayout(classroom.currentLayout, students));
     errors.push(...validateReactionSetup(students, { learningRules: scenario.learningRules, interactionRules: scenario.interactionRules, classroom, archetypes: scenario.archetypes,
-        relations: scenario.relations ?? [], abilities: scenario.reactionAbilities ?? [] }));
+        classRelations: scenario.classRelations, relations: scenario.relations ?? [], abilities: scenario.reactionAbilities ?? [] }));
     function uniqueIds(items, label) {
         const ids = new Set();
         for (const item of items) {
@@ -45,13 +49,27 @@ export function validateScenario(scenario) {
     const archetypeIds = uniqueIds(scenario.archetypes, 'Archétype');
     const occupiedSeats = new Set();
     for (const student of students) {
+        errors.push(...validateProgression(student));
+        if (student.progression && !scenario.interactionRules)
+            errors.push('La progression exige les règles de maîtrise.');
         if (student.disruptionChance !== undefined && (!Number.isFinite(student.disruptionChance) || student.disruptionChance < 0 || student.disruptionChance > 1))
             errors.push('Probabilité de perturbation invalide.');
-        if (!seatIds.has(student.seatId))
-            errors.push(`Élève ${student.id} : siège inconnu ${student.seatId}.`);
-        if (occupiedSeats.has(student.seatId))
-            errors.push(`Élève ${student.id} : siège déjà occupé ${student.seatId}.`);
-        occupiedSeats.add(student.seatId);
+        if (!classroom.currentLayout && student.present !== false) {
+            if (!student.seatId || !seatIds.has(student.seatId))
+                errors.push(`Élève ${student.id} : siège inconnu ${student.seatId}.`);
+            if (student.seatId && occupiedSeats.has(student.seatId))
+                errors.push(`Élève ${student.id} : siège déjà occupé ${student.seatId}.`);
+            if (student.seatId)
+                occupiedSeats.add(student.seatId);
+        }
+        if (student.present !== undefined && typeof student.present !== 'boolean')
+            errors.push('Présence invalide.');
+        if (student.knowledge)
+            for (const value of Object.values(student.knowledge))
+                checkStat(value, 'Connaissance');
+        if (student.seatPreferences && (!Array.isArray(student.seatPreferences.likes) || !Array.isArray(student.seatPreferences.dislikes) ||
+            [...student.seatPreferences.likes, ...student.seatPreferences.dislikes].some(t => typeof t !== 'string')))
+            errors.push('Préférences invalides.');
         if (!archetypeIds.has(student.archetypeId))
             errors.push(`Élève ${student.id} : archétype inconnu.`);
         for (const stat of ['intelligence', 'discipline', 'concentration', 'morale']) {

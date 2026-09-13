@@ -10,8 +10,12 @@ import type { ActionQueue } from './actions.js';
 import { moraleMultiplier, roundValue } from './combat.js';
 import { applyTemporaryEffect, effectiveStats } from './effects.js';
 import type { AttackModifiers } from './turn.js';
+import { AbilityUsage, effectiveAbility } from './abilities.js';
+import { abilities as catalog } from '../data/abilities.js';
+import { ClassroomLayoutSystem, layoutFromClassroom } from '../systems/ClassroomLayoutSystem.js';
 
 export interface ReactionSetup {
+  abilityUsage?: AbilityUsage;
   classRelations?: import('../domain.js').ClassRelations | undefined;
   learningRules?: LearningRules | undefined;
   interactionRules?: InteractionRules | undefined;
@@ -79,9 +83,7 @@ export function validateReactionSetup(students: readonly Student[], setup: React
 }
 
 export function areAdjacent(left: Student, right: Student, classroom: Classroom): boolean {
-  const a = classroom.seats.find(seat => seat.id === left.seatId);
-  const b = classroom.seats.find(seat => seat.id === right.seatId);
-  return left.id !== right.id && !!a && !!b && Math.abs(a.row - b.row) + Math.abs(a.column - b.column) === 1;
+  return ClassroomLayoutSystem.getNeighbors(classroom.currentLayout ?? layoutFromClassroom(classroom, [left, right]), left.id).direct.includes(right.id);
 }
 
 export function relationBetween(left: string, right: string, relations: readonly StudentRelation[]): number {
@@ -119,21 +121,28 @@ export function resolveReactionWindow(context: ReactionContext): void {
   const candidates: QueuedReaction[] = [];
   const interactionRules = setup.interactionRules;
   if (interactionRules && !context.behavior) throw new Error('Contexte comportemental manquant.');
-  const seat = (id: string) => setup.classroom.seats.find(s => s.id === students.find(student => student.id === id)!.seatId)!;
+  const layout = setup.classroom.currentLayout ?? layoutFromClassroom(setup.classroom, students);
+  const seat = (id: string) => layout.seats.find(s => s.studentId === id)!;
   const ordered = [...students].sort((a, b) => seat(a.id).row - seat(b.id).row || seat(a.id).column - seat(b.id).column);
   for (const student of ordered) {
     const state = states.get(student.id);
     if (!state || state.concentration <= 0 || resting.has(student.id) || !areAdjacent(student, target, setup.classroom)) continue;
     const relation = setup.classRelations ? getRelation(setup.classRelations, student.id, target.id) : relationBetween(student.id, target.id, setup.relations);
     if (!interactionRules && relation <= 0) continue;
-    const ids = student.reactionIds ?? setup.archetypes.find(archetype => archetype.id === student.archetypeId)?.reactionIds ?? [];
+    const ids = student.progression ? catalog.filter(a => a.archetype === student.archetypeId).map(a => a.id) : student.reactionIds ?? setup.archetypes.find(archetype => archetype.id === student.archetypeId)?.reactionIds ?? [];
     const available = setup.abilities.filter(ability => ids.includes(ability.id) && ability.window === window && !resolvedEffects.has(effectKey(ability)))
+      .map(ability => effectiveAbility(student, ability))
       .sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
     const checks = interactionRules && available.length ? checkMorale(student.id, effectiveStats(student, state).morale,
       context.behavior!.random, interactionRules, events, window, target.id) : undefined;
     const mastery = interactionRules ? chapterMastery(state, lesson, context.behavior!.chapterId) : 100;
     const targetMastery = interactionRules ? chapterMastery(targetState, lesson, context.behavior!.chapterId) : 100;
     for (const ability of available) {
+      const unavailable = (setup.abilityUsage ?? new AbilityUsage()).reason(student, ability.id);
+      if (unavailable) {
+        events.push({ type: 'REACTION_EVALUATED', sourceId: student.id, targetId: target.id, abilityId: ability.id, window, reason: unavailable, mastery, targetMastery, minimum: ability.mastery?.minimum ?? 0, modifier: 0 });
+        continue;
+      }
       let powerModifier = 1;
       let noEffect = false;
       if (interactionRules) {
@@ -208,11 +217,12 @@ export function resolveReactionWindow(context: ReactionContext): void {
     const source = students.find(student => student.id === reaction!.actorId)!;
     const state = effectiveStats(source, states.get(source.id)!);
     const ability = reaction.ability;
+    setup.abilityUsage?.consume(source, ability.id);
     const powerModifier = reaction.powerModifier ?? 1;
     let before: number;
     let after: number;
     if (ability.effect === 'COMBINED_ATTACK') {
-      context.modifiers.combined = { partner: state, synergyRatio: ability.synergy * reaction.relation / 100 * powerModifier };
+      context.modifiers.combined = { partner: state, synergyRatio: ability.synergy * reaction.relation / 100 * powerModifier, ...(source.progression ? { abilityId: ability.id } : {}) };
       resolvedEffects.add(effectKey(ability));
       events.push({ type: 'COMBINED_ATTACK_STARTED', sourceId: source.id, targetId: target.id,
         abilityId: ability.id, relation: reaction.relation });
@@ -240,5 +250,6 @@ export function resolveReactionWindow(context: ReactionContext): void {
     events.push({ type: 'REACTION_TRIGGERED', sourceId: source.id, targetId: reaction.targetId,
       abilityId: ability.id, window, effect: ability.effect,
       relation: reaction.relation, before, after });
+    if (source.progression) events.push({ type: 'ABILITY_USED', studentId: source.id, targetId: target.id, abilityId: ability.id, effective: before !== after });
   }
 }

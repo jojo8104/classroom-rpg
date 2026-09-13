@@ -10,13 +10,14 @@ export type ReactionLimitReason = 'maxActionsPerRound' | 'maxChainDepth' | 'maxR
 
 // Les événements conservent les valeurs au moment de l'effet, pas de références mutables.
 export type ActionEvent =
+  | { type: 'ABILITY_USED'; studentId: string; targetId: string; abilityId: string; effective: boolean }
   | ({ type: 'BEHAVIOR_CANDIDATE_CREATED' | 'BEHAVIOR_SELECTED' } & import('./engine/social.js').BehaviorCandidate)
   | { type: 'RELATION_CHANGED'; from: string; to: string; before: number; after: number; reason: string }
   | { type: 'MORALE_CHECK'; studentId: string; targetId: string; context: 'MAIN_ACTION' | ReactionWindow;
       kind: 'negative' | 'positive'; coefficient: number; chance: number; draw: number; success: boolean }
   | { type: 'BEHAVIOR_APPLIED'; studentId: string; effect: 'DISTRACTED'; multiplier: number }
   | { type: 'REACTION_EVALUATED'; sourceId: string; targetId: string; abilityId: string; window: ReactionWindow;
-      reason: 'morale' | 'relation' | 'mastery' | 'noEffect' | 'eligible'; mastery: number; targetMastery: number; minimum: number; modifier: number }
+      reason: 'morale' | 'relation' | 'mastery' | 'noEffect' | 'eligible' | 'locked' | 'abilityLimit'; mastery: number; targetMastery: number; minimum: number; modifier: number }
 
   | { type: 'DISRUPTION_RESOLVED'; sourceId: string; targetId: string; power: number; afterAuthority: number; damage: number }
   | { type: 'REACTION_TRIGGERED'; sourceId: string; targetId: string; abilityId: string;
@@ -43,6 +44,13 @@ export type ActionEvent =
   | { type: 'ACTION_LIMIT_REACHED'; studentId: string; reason: ActionLimitReason };
 
 type LessonEvent =
+  | { type: 'XP_GAINED'; studentId: string; amount: number; rewards: import('./engine/progression.js').ProgressionResult['rewards'] }
+  | { type: 'STUDENT_LEVEL_UP'; studentId: string; oldLevel: number; newLevel: number }
+  | { type: 'ABILITY_UNLOCKED'; studentId: string; abilityId: string; level: number; source: 'LEVEL_UP' | 'SPECIALIZATION' | 'EVENT' }
+  | { type: 'ARCHETYPE_USAGE_UPDATED'; studentId: string; usage: import('./engine/progression.js').StudentProgression['usage']; delta: import('./engine/progression.js').StudentProgression['usage'] }
+  | { type: 'SPECIALIZATION_AVAILABLE'; studentId: string; suggestions: ReturnType<typeof import('./engine/progression.js').specializationTrends> }
+  | { type: 'SPECIALIZATION_SELECTED'; studentId: string; specializationId: import('./data/abilities.js').SpecializationId }
+  | { type: 'LESSON_RESULTS'; results: LessonResult[] }
   | { type: 'LESSON_STARTED'; seed: number }
   | { type: 'CHAPTER_STARTED' }
   | { type: 'ROUND_STARTED' }

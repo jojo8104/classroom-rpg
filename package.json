@@ -10,7 +10,8 @@
     "dev": "npm run build && node scripts/serve.mjs",
     "build:pages": "npm run build && node scripts/build-pages.mjs",
     "presimulate": "npm run build",
-    "simulate": "node dist/cli/simulate.js"
+    "simulate": "node dist/cli/simulate.js",
+    "simulate:progression": "npm run build && node dist/cli/progression.js"
   },
   "devDependencies": {
     "@types/node": "^22.20.2",

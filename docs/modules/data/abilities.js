@@ -1,0 +1,23 @@
+// Les identifiants et les effets historiques sont conservés.
+export const abilities = [
+    { id: 'motivate_neighbor', name: 'Encouragement', archetype: 'support', requiredLevel: 1, usage: 'morale', perRound: 1, perLesson: 6, mode: 'REACTION', reaction: { id: 'motivate_neighbor', window: 'AFTER_STUDENT_ATTACK', effect: 'APPLY_TEMPORARY_EFFECT', minRelation: 40, stat: 'morale', value: 12, durationInRounds: 2 } },
+    { id: 'SUPPORT', name: 'Soutien de concentration', archetype: 'support', requiredLevel: 2, usage: 'concentration', perRound: 1, perLesson: 6, mode: 'MAIN', action: 'SUPPORT' },
+    { id: 'explain_neighbor', name: 'Aide pédagogique', archetype: 'support', requiredLevel: 3, usage: 'pedagogy', perRound: 1, perLesson: 4, mode: 'REACTION', reaction: { id: 'explain_neighbor', window: 'BEFORE_STUDENT_ATTACK', effect: 'APPLY_TEMPORARY_EFFECT', minRelation: 40, stat: 'intelligence', value: 16, durationInRounds: 2 } },
+    { id: 'steady_neighbor', name: 'Stabilisation', archetype: 'support', requiredLevel: 4, usage: 'concentration', perRound: 1, perLesson: 4, mode: 'REACTION', reaction: { id: 'steady_neighbor', window: 'DURING_STUDENT_ATTACK', effect: 'APPLY_TEMPORARY_EFFECT', minRelation: 40, stat: 'discipline', value: 20, durationInRounds: 2 } },
+    { id: 'weaken_lesson', name: 'Attaque de complexité', archetype: 'offensive', requiredLevel: 1, usage: 'offense', perRound: 1, perLesson: 6, mode: 'REACTION', reaction: { id: 'weaken_lesson', window: 'BEFORE_STUDENT_ATTACK', effect: 'REDUCE_COMPLEXITY', minRelation: 40, reduction: 0.4, maxReduction: 0.6 } },
+    { id: 'analyze', name: 'Analyse', archetype: 'offensive', requiredLevel: 2, usage: 'pedagogy', perRound: 1, perLesson: 3, mode: 'REACTION', reaction: { id: 'analyze', window: 'BEFORE_STUDENT_ATTACK', effect: 'APPLY_TEMPORARY_EFFECT', minRelation: 40, stat: 'intelligence', value: 10, durationInRounds: 2 } },
+    { id: 'prepare_attack', name: 'Préparation offensive', archetype: 'offensive', requiredLevel: 3, usage: 'offense', perRound: 1, perLesson: 3, mode: 'REACTION', reaction: { id: 'prepare_attack', window: 'DURING_STUDENT_ATTACK', effect: 'APPLY_TEMPORARY_EFFECT', minRelation: 40, stat: 'discipline', value: 12, durationInRounds: 2, mastery: { minimum: 20, scalesPower: true } } },
+    { id: 'combined_attack', name: 'Attaque coordonnée', archetype: 'offensive', requiredLevel: 4, usage: 'combo', perRound: 1, perLesson: 3, mode: 'REACTION', reaction: { id: 'combined_attack', window: 'BEFORE_STUDENT_ATTACK', effect: 'COMBINED_ATTACK', minRelation: 90, synergy: 0.25 } },
+    { id: 'protect_neighbor', name: 'Protection', archetype: 'defensive', requiredLevel: 1, usage: 'defense', perRound: 1, perLesson: 6, mode: 'REACTION', reaction: { id: 'protect_neighbor', window: 'DURING_LESSON_ATTACK', effect: 'REDUCE_PRESSURE', minRelation: 40, reduction: 0.6, maxReduction: 0.8 } },
+    { id: 'intercept', name: 'Interception préventive', archetype: 'defensive', requiredLevel: 2, usage: 'concentration', perRound: 1, perLesson: 3, mode: 'REACTION', reaction: { id: 'intercept', window: 'BEFORE_STUDENT_ATTACK', effect: 'APPLY_TEMPORARY_EFFECT', minRelation: 40, stat: 'discipline', value: 16, durationInRounds: 1 } },
+    { id: 'reassure', name: 'Réduire la tension', archetype: 'defensive', requiredLevel: 3, usage: 'morale', perRound: 1, perLesson: 3, mode: 'REACTION', reaction: { id: 'reassure', window: 'AFTER_STUDENT_ATTACK', effect: 'APPLY_TEMPORARY_EFFECT', minRelation: 40, stat: 'morale', value: 10, durationInRounds: 2 } },
+    { id: 'fortify', name: 'Protection durable', archetype: 'defensive', requiredLevel: 4, usage: 'concentration', perRound: 1, perLesson: 3, mode: 'REACTION', reaction: { id: 'fortify', window: 'DURING_STUDENT_ATTACK', effect: 'APPLY_TEMPORARY_EFFECT', minRelation: 60, stat: 'discipline', value: 24, durationInRounds: 3 } },
+];
+export const specializations = [
+    { id: 'motivator', name: 'Motivateur', archetype: 'support', usage: ['morale', 'concentration'], power: 1.25, duration: 1 },
+    { id: 'educator', name: 'Pédagogue', archetype: 'support', usage: ['pedagogy'], power: 1.3, duration: 1 },
+    { id: 'analyst', name: 'Analyste', archetype: 'offensive', usage: ['offense', 'pedagogy'], power: 1.3, duration: 0 },
+    { id: 'coordinator', name: 'Coordinateur', archetype: 'offensive', usage: ['combo'], power: 1.5, duration: 0 },
+    { id: 'protector', name: 'Protecteur', archetype: 'defensive', usage: ['defense'], power: 1.3, duration: 0 },
+    { id: 'stabilizer', name: 'Stabilisateur', archetype: 'defensive', usage: ['concentration', 'morale'], power: 1.2, duration: 1 },
+];

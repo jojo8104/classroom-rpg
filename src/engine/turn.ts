@@ -23,7 +23,7 @@ export interface WorkTurnContext {
 }
 
 export interface AttackModifiers {
-  combined?: { partner: Student; synergyRatio: number };
+  combined?: { partner: Student; synergyRatio: number; abilityId?: string };
 }
 
 function resolveProgress(context: WorkTurnContext, gain: number): void {
@@ -75,6 +75,7 @@ export function* resolveWorkTurn(context: WorkTurnContext): Generator<ReactionWi
     resolveProgress(context, result.potentialGain);
     events.push({ type: 'COMBINED_ATTACK_RESOLVED', sourceId: partner.id, targetId: student.id,
       ...result, appliedProgress: roundValue(chapter.progress - before) });
+    if (combination.abilityId) events.push({ type: 'ABILITY_USED', studentId: partner.id, targetId: student.id, abilityId: combination.abilityId, effective: chapter.progress > before });
   } else resolveProgress(context, gain);
   if (context.learningRules) {
     if (chapter.progress > progressBefore && context.learningRules.successMorale > 0)
