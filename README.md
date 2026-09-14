@@ -308,7 +308,7 @@ Le compte rendu des critères et du parcours complet est dans [VALIDATION_ROADMA
 
 ## Roadmap 3 — personnalité et relations
 
-L'interface et `npm run simulate` utilisent `createSocialPrototype`. `createPrototype`
+Le scénario de la Roadmap 3 et `npm run simulate` utilisent `createSocialPrototype`. `createPrototype`
 reste le scénario historique pour les tests des Roadmaps 1 et 2.
 
 - `Student.personality` compose six intensités entre 0 et 1 (absence = 0).
@@ -341,4 +341,20 @@ les scénarios sans état social explicite conservent leurs règles historiques.
 
 Avant chaque leçon : consulter les acquis et relations, déplacer les élèves (glisser-déposer ou sélection au clavier), verrouiller les places, sauvegarder ou réinitialiser. « Lancer la leçon » valide et copie le plan ; les interactions suivent alors les voisins réels. Le placement, les connaissances, les relations et la progression sont conservés sur cet appareil.
 
-Voir [la roadmap](roadmap6.md) et [les détails de validation et limites](VALIDATION_ROADMAP6.md). Le prototype reste en 3×3 ; la logique de placement est testée avec d’autres dimensions.
+Voir [la roadmap](roadmap6.md) et [les détails de validation et limites](VALIDATION_ROADMAP6.md). Cette étape utilisait une grille 3×3 ; la Roadmap 7 étend maintenant la classe à 5×5.
+
+
+## Classe complète — Roadmap 7
+
+L’interface utilise désormais `createFullClassPrototype` : 25 profils variés sur une grille 5×5. Les dimensions sont centralisées dans `src/data/classroomConfig.ts`. Les trois classes RPG existantes sont conservées.
+
+Le moteur utilise un index des voisins, des relations creuses et un ciblage générique (voisinage, ligne, colonne, rayon). Les interactions secondaires passent par une file bornée. La préparation conserve déplacement, échange, verrouillage et sauvegarde ; les anciens plans 3×3 sont migrés. Les indicateurs collectifs et les détails à la sélection limitent le bruit visuel.
+
+La lecture propose Synthèse, Détaillée et Instantanée. La simulation reste indépendante des animations. Pour de futures mesures en console :
+
+```sh
+npm run benchmark -- --ticks 100 --lessons 1
+npm run benchmark -- --rows 5 --columns 6 --ticks 100 --lessons 10
+```
+
+Voir [Roadmap 7](roadmap7.md), [le compte rendu et ses limites](VALIDATION_ROADMAP7.md) et [la mesure enregistrée](benchmark-roadmap7.json).

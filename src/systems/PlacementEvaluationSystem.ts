@@ -20,24 +20,44 @@ export function getClassSynergy(studentA: Student, studentB: Student) {
 }
 
 export class PlacementEvaluationSystem {
-  constructor(private scenario: PrototypeScenario, private layout: ClassroomLayout) {}
+  private system: ClassroomLayoutSystem;
+  private students: Map<string,Student>;
+  private scores=new Map<string,number>();
+  constructor(private scenario: PrototypeScenario, layout: ClassroomLayout | ClassroomLayoutSystem) {
+    this.system=layout instanceof ClassroomLayoutSystem ? layout : new ClassroomLayoutSystem(layout);
+    this.students=new Map(scenario.students.map(s=>[s.id,s]));
+  }
+  recalculateAffectedPlacements(changedSeatIds: readonly string[]): Map<string,number> {
+    const seats=new Set(changedSeatIds.flatMap(id=>[id,...this.system.getNeighborSeatIds(id)]));
+    const result=new Map<string,number>();
+    for(const id of seats) {
+      const seat=this.system.getSeat(id); if(!seat?.studentId) continue;
+      const score=this.previewPlacement(seat.studentId,id).score;
+      this.scores.set(seat.studentId,score); result.set(seat.studentId,score);
+    }
+    return result;
+  }
   relation(from: string, to: string): number {
     return this.scenario.classRelations ? getRelation(this.scenario.classRelations, from, to) :
       this.scenario.relations?.find(r => r.studentIds.includes(from) && r.studentIds.includes(to))?.value ?? 0;
   }
   previewPlacement(studentId: string, seatId: string) {
-    const system = new ClassroomLayoutSystem(this.layout);
-    const student = this.scenario.students.find(s => s.id === studentId);
+    const system = this.system;
+    const student = this.students.get(studentId);
     const seat = system.getSeat(seatId);
     if (!student || !seat || !system.getStudentSeat(studentId)) throw new Error('Placement inconnu.');
     const current = system.getStudentSeat(studentId)!.id === seatId;
     const allowed = current || system.canMoveStudent(studentId, seatId);
-    if (allowed && !current) system.moveStudent(studentId, seatId);
+    const source=system.getStudentSeat(studentId)!;
+    // Occupation virtuelle des seuls voisins de la destination ; aucun clone du plan.
+    const destination=allowed ? seat : source;
+    const occupant=(id:string)=>allowed && !current && id===source.id ? seat.studentId : system.getSeat(id)?.studentId;
+    const neighborIds=system.getNeighborSeatIds(destination.id).flatMap(id=>{const who=occupant(id);return who && who!==studentId ? [who] : [];});
     const preference = getSeatPreferenceModifier(student, seat);
     const conceptId = this.scenario.lesson.conceptIds[0] ?? '';
     const mastery = knowledgeOf(student, conceptId);
-    const neighbors = system.getNeighbors(studentId).direct.map(id => {
-      const other = this.scenario.students.find(s => s.id === id)!;
+    const neighbors = neighborIds.filter(id=>this.students.get(id)?.present!==false).map(id => {
+      const other = this.students.get(id)!;
       const knowledge = knowledgeOf(other, conceptId);
       return { studentId: id, name: other.name, relation: this.relation(studentId, id),
         incomingRelation: this.relation(id, studentId), knowledge,

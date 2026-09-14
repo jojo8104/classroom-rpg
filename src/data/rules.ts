@@ -2,6 +2,7 @@
 export const statBounds = { min: 0, max: 100 } as const;
 
 export interface ActionRules {
+  actionOrder?: 'SEQUENTIAL' | 'SHUFFLED';
   workScale: number;
   pressureScale: number;
   defenseReference: number;
@@ -28,4 +29,13 @@ export function createActionRules(): ActionRules {
     maxReactionsPerStudent: 1,
     supportChanceByArchetype: { offensive: 0.1, defensive: 0.2, support: 0.65 },
   };
+}
+
+/** Budget proportionnel à l'effectif : premières actions + extras + réactions. */
+export function createClassroomActionRules(studentCount: number): ActionRules {
+  const rules = createActionRules();
+  rules.maxExtraActionsPerStudent = 3;
+  rules.maxActionsPerRound = studentCount * (1 + rules.maxExtraActionsPerStudent + rules.maxReactionsPerStudent);
+  rules.actionOrder = 'SEQUENTIAL';
+  return rules;
 }

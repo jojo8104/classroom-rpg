@@ -66,6 +66,7 @@ type LessonEvent =
 export type GameEventPayload = ActionEvent | LessonEvent;
 
 export type GameEvent = GameEventPayload & {
+  priority?: import('./engine/diagnostics.js').EventPriority;
   sequence: number;
   lessonId: string;
   chapterId: string;

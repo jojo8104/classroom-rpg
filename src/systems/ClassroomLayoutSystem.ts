@@ -37,46 +37,90 @@ export function validateLayout(value: unknown, students: readonly Student[]): st
   return errors;
 }
 
+// Index construit une fois par structure. Les échanges ne modifient que l'occupation.
+class LayoutIndex {
+  seats = new Map<string, ClassroomLayout['seats'][number]>();
+  occupants = new Map<string, ClassroomLayout['seats'][number]>();
+  positions = new Map<string, ClassroomLayout['seats'][number]>();
+  neighbors = new Map<string, {direct: string[]; diagonal: string[]}>();
+  constructor(layout: ClassroomLayout) {
+    for (const seat of layout.seats) {
+      this.seats.set(seat.id,seat); this.positions.set(`${seat.row}:${seat.column}`,seat);
+      if (seat.studentId) this.occupants.set(seat.studentId,seat);
+    }
+    for (const seat of layout.seats) {
+      const ids = (offsets: number[][]) => offsets.flatMap(([dr,dc]) => {
+        const other = this.positions.get(`${seat.row+dr!}:${seat.column+dc!}`); return other ? [other.id] : [];
+      });
+      this.neighbors.set(seat.id,{direct:ids([[-1,0],[0,-1],[0,1],[1,0]]), diagonal:ids([[-1,-1],[-1,1],[1,-1],[1,1]])});
+    }
+  }
+  getNeighbors(studentId: string, diagonals = false) {
+    const seat = this.occupants.get(studentId), neighbors = seat ? this.neighbors.get(seat.id)! : {direct:[],diagonal:[]};
+    const occupied = (ids: string[]) => ids.flatMap(id => { const student = this.seats.get(id)!.studentId; return student ? [student] : []; });
+    return { direct: occupied(neighbors.direct), diagonal: diagonals ? occupied(neighbors.diagonal) : [] };
+  }
+}
+const frozenIndexes = new WeakMap<ClassroomLayout, LayoutIndex>();
 export class ClassroomLayoutSystem {
   private layout: ClassroomLayout;
-  constructor(layout: ClassroomLayout) { this.layout = structuredClone(layout); }
+  private index: LayoutIndex;
+  readonly topologyBuilds = 1;
+  constructor(layout: ClassroomLayout) { this.layout = structuredClone(layout); this.index = new LayoutIndex(this.layout); }
   get currentLayout(): ClassroomLayout { return structuredClone(this.layout); }
-  getSeat(id: string) { return structuredClone(this.layout.seats.find(s => s.id === id)); }
-  getStudentSeat(id: string) { return structuredClone(this.layout.seats.find(s => s.studentId === id)); }
+  get dimensions() { return {rows:this.layout.rows,columns:this.layout.columns}; }
+  getSeat(id: string) { return structuredClone(this.index.seats.get(id)); }
+  getStudentSeat(id: string) { return structuredClone(this.index.occupants.get(id)); }
+  getSeatAt(row: number,column: number) { return structuredClone(this.index.positions.get(`${row}:${column}`)); }
+  getNeighborSeatIds(seatId: string, diagonals = false): string[] {
+    const neighbors = this.index.neighbors.get(seatId);
+    return neighbors ? [...neighbors.direct,...(diagonals ? neighbors.diagonal : [])] : [];
+  }
   canMoveStudent(studentId: string, seatId: string): boolean {
-    const source = this.getStudentSeat(studentId), target = this.getSeat(seatId);
+    const source = this.index.occupants.get(studentId), target = this.index.seats.get(seatId);
     return !!source && !!target && !source.locked && !target.locked && source.id !== target.id;
   }
   moveStudent(studentId: string, seatId: string): void {
     if (!this.canMoveStudent(studentId, seatId)) throw new Error('Déplacement impossible : place verrouillée ou inconnue.');
-    const source = this.layout.seats.find(s => s.studentId === studentId)!;
-    const target = this.layout.seats.find(s => s.id === seatId)!;
+    const source = this.index.occupants.get(studentId)!, target = this.index.seats.get(seatId)!;
     [source.studentId, target.studentId] = [target.studentId, source.studentId];
+    this.index.occupants.set(studentId,target);
+    if (source.studentId) this.index.occupants.set(source.studentId,source);
   }
   swapStudents(left: string, right: string): void {
-    const target = this.getStudentSeat(right);
-    if (!target) throw new Error('Élève inconnu.');
-    this.moveStudent(left, target.id);
+    const target = this.index.occupants.get(right); if (!target) throw new Error('Élève inconnu.'); this.moveStudent(left,target.id);
   }
-  setLocked(seatId: string, locked: boolean): void {
-    const seat = this.layout.seats.find(s => s.id === seatId);
-    if (!seat) throw new Error('Siège inconnu.');
-    seat.locked = locked;
+  setLocked(seatId: string,locked: boolean): void {
+    const seat = this.index.seats.get(seatId); if (!seat) throw new Error('Siège inconnu.'); seat.locked = locked;
   }
-  getNeighbors(studentId: string, options: { diagonals?: boolean } = {}): { direct: string[]; diagonal: string[] } {
-    return ClassroomLayoutSystem.getNeighbors(this.layout, studentId, options);
+  getNeighbors(studentId: string, options: {diagonals?: boolean} = {}) { return this.index.getNeighbors(studentId,options.diagonals); }
+  static getNeighbors(layout: ClassroomLayout,studentId: string,options: {diagonals?: boolean} = {}) {
+    // Seuls les snapshots profondément figés sont partagés ; une donnée mutable externe n'est jamais mise en cache.
+    let index = frozenIndexes.get(layout);
+    if (!index) {
+      index = new LayoutIndex(layout);
+      if (Object.isFrozen(layout) && Object.isFrozen(layout.seats) && layout.seats.every(Object.isFrozen)) frozenIndexes.set(layout,index);
+    }
+    return index.getNeighbors(studentId,options.diagonals);
   }
-  static getNeighbors(layout: ClassroomLayout, studentId: string, options: { diagonals?: boolean } = {}): { direct: string[]; diagonal: string[] } {
-    const source = layout.seats.find(s => s.studentId === studentId);
-    const result: { direct: string[]; diagonal: string[] } = { direct: [], diagonal: [] };
-    if (!source) return result;
-    for (const seat of [...layout.seats].sort((a,b) => a.row-b.row || a.column-b.column)) {
-      if (!seat.studentId || seat.studentId === studentId) continue;
-      const dr = Math.abs(source.row-seat.row), dc = Math.abs(source.column-seat.column);
-      if (dr + dc === 1) result.direct.push(seat.studentId);
-      else if (options.diagonals && dr === 1 && dc === 1) result.diagonal.push(seat.studentId);
+  getStudentsInRow(row: number): string[] {
+    return Array.from({length:this.layout.columns},(_,column) => this.index.positions.get(`${row}:${column}`)?.studentId).filter((id): id is string => !!id);
+  }
+  getStudentsInColumn(column: number): string[] {
+    return Array.from({length:this.layout.rows},(_,row) => this.index.positions.get(`${row}:${column}`)?.studentId).filter((id): id is string => !!id);
+  }
+  getStudentsInRadius(seatId: string,radius: number): string[] {
+    if (!Number.isSafeInteger(radius) || radius < 0) throw new Error('Rayon entier positif ou nul requis.');
+    const source = this.index.seats.get(seatId); if (!source) return [];
+    const result: string[] = [];
+    for (let row=Math.max(0,source.row-radius);row<=Math.min(this.layout.rows-1,source.row+radius);row++) {
+      for (let column=Math.max(0,source.column-radius);column<=Math.min(this.layout.columns-1,source.column+radius);column++) {
+        if (Math.abs(row-source.row)+Math.abs(column-source.column)>radius) continue;
+        const student = this.index.positions.get(`${row}:${column}`)?.studentId; if (student) result.push(student);
+      }
     }
     return result;
   }
-  validateLayout(students: readonly Student[]) { return validateLayout(this.layout, students); }
+  getAllStudents(): string[] { return [...this.index.seats.values()].sort((a,b)=>a.row-b.row || a.column-b.column).flatMap(s=>s.studentId ? [s.studentId] : []); }
+  validateLayout(students: readonly Student[]) { return validateLayout(this.layout,students); }
 }

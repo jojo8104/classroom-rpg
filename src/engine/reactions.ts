@@ -1,3 +1,5 @@
+import type { TargetingSystem } from '../systems/TargetingSystem.js';
+import type { RelationIndex } from '../systems/RelationIndex.js';
 import { behaviorCandidate, weightedChoice, getRelation, relationThreshold, validateSocial } from './social.js';
 import { validateLearningRules, type LearningRules } from '../data/learningRules.js';
 import { validateInteractionRules, type InteractionRules } from '../data/interactionRules.js';
@@ -15,6 +17,9 @@ import { abilities as catalog } from '../data/abilities.js';
 import { ClassroomLayoutSystem, layoutFromClassroom } from '../systems/ClassroomLayoutSystem.js';
 
 export interface ReactionSetup {
+  targeting?: TargetingSystem;
+  relationIndex?: RelationIndex | undefined;
+  validated?: boolean;
   abilityUsage?: AbilityUsage;
   classRelations?: import('../domain.js').ClassRelations | undefined;
   learningRules?: LearningRules | undefined;
@@ -123,11 +128,12 @@ export function resolveReactionWindow(context: ReactionContext): void {
   if (interactionRules && !context.behavior) throw new Error('Contexte comportemental manquant.');
   const layout = setup.classroom.currentLayout ?? layoutFromClassroom(setup.classroom, students);
   const seat = (id: string) => layout.seats.find(s => s.studentId === id)!;
-  const ordered = [...students].sort((a, b) => seat(a.id).row - seat(b.id).row || seat(a.id).column - seat(b.id).column);
+  const localIds = setup.targeting?.getTargets({sourceStudentId:target.id,rangeType:'ADJACENT'});
+  const ordered = (localIds ? localIds.flatMap(id=>{ const student=students.find(s=>s.id===id); return student ? [student] : []; }) : [...students]).sort((a,b)=>seat(a.id).row-seat(b.id).row || seat(a.id).column-seat(b.id).column);
   for (const student of ordered) {
     const state = states.get(student.id);
     if (!state || state.concentration <= 0 || resting.has(student.id) || !areAdjacent(student, target, setup.classroom)) continue;
-    const relation = setup.classRelations ? getRelation(setup.classRelations, student.id, target.id) : relationBetween(student.id, target.id, setup.relations);
+    const relation = setup.classRelations ? (setup.relationIndex?.getRelation(student.id,target.id) ?? getRelation(setup.classRelations, student.id, target.id)) : relationBetween(student.id, target.id, setup.relations);
     if (!interactionRules && relation <= 0) continue;
     const ids = student.progression ? catalog.filter(a => a.archetype === student.archetypeId).map(a => a.id) : student.reactionIds ?? setup.archetypes.find(archetype => archetype.id === student.archetypeId)?.reactionIds ?? [];
     const available = setup.abilities.filter(ability => ids.includes(ability.id) && ability.window === window && !resolvedEffects.has(effectKey(ability)))

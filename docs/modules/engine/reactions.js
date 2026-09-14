@@ -104,12 +104,13 @@ export function resolveReactionWindow(context) {
         throw new Error('Contexte comportemental manquant.');
     const layout = setup.classroom.currentLayout ?? layoutFromClassroom(setup.classroom, students);
     const seat = (id) => layout.seats.find(s => s.studentId === id);
-    const ordered = [...students].sort((a, b) => seat(a.id).row - seat(b.id).row || seat(a.id).column - seat(b.id).column);
+    const localIds = setup.targeting?.getTargets({ sourceStudentId: target.id, rangeType: 'ADJACENT' });
+    const ordered = (localIds ? localIds.flatMap(id => { const student = students.find(s => s.id === id); return student ? [student] : []; }) : [...students]).sort((a, b) => seat(a.id).row - seat(b.id).row || seat(a.id).column - seat(b.id).column);
     for (const student of ordered) {
         const state = states.get(student.id);
         if (!state || state.concentration <= 0 || resting.has(student.id) || !areAdjacent(student, target, setup.classroom))
             continue;
-        const relation = setup.classRelations ? getRelation(setup.classRelations, student.id, target.id) : relationBetween(student.id, target.id, setup.relations);
+        const relation = setup.classRelations ? (setup.relationIndex?.getRelation(student.id, target.id) ?? getRelation(setup.classRelations, student.id, target.id)) : relationBetween(student.id, target.id, setup.relations);
         if (!interactionRules && relation <= 0)
             continue;
         const ids = student.progression ? catalog.filter(a => a.archetype === student.archetypeId).map(a => a.id) : student.reactionIds ?? setup.archetypes.find(archetype => archetype.id === student.archetypeId)?.reactionIds ?? [];

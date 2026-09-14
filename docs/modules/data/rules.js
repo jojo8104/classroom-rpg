@@ -10,3 +10,11 @@ export function createActionRules() {
         supportChanceByArchetype: { offensive: 0.1, defensive: 0.2, support: 0.65 },
     };
 }
+/** Budget proportionnel à l'effectif : premières actions + extras + réactions. */
+export function createClassroomActionRules(studentCount) {
+    const rules = createActionRules();
+    rules.maxExtraActionsPerStudent = 3;
+    rules.maxActionsPerRound = studentCount * (1 + rules.maxExtraActionsPerStudent + rules.maxReactionsPerStudent);
+    rules.actionOrder = 'SEQUENTIAL';
+    return rules;
+}

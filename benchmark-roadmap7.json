@@ -1,0 +1,172 @@
+{
+  "rows": 5,
+  "columns": 5,
+  "students": 25,
+  "ticks": 100,
+  "lessons": 1,
+  "events": 21662,
+  "interactions": 163,
+  "mainActions": 2500,
+  "positiveEffects": 603,
+  "negativeEffects": 516,
+  "maximumQueue": 25,
+  "maximumChain": 1,
+  "averageTickMs": 21.591134000000014,
+  "p95TickMs": 78.41219999999998,
+  "maximumTickMs": 250.93490000000003,
+  "totalMs": 3118.6029,
+  "queueBudget": 125,
+  "chainBudget": 3,
+  "behavior": {
+    "student-1": {
+      "work": 100,
+      "support": 0,
+      "disrupt": 0,
+      "recover": 0
+    },
+    "student-2": {
+      "work": 100,
+      "support": 0,
+      "disrupt": 0,
+      "recover": 0
+    },
+    "student-3": {
+      "work": 94,
+      "support": 6,
+      "disrupt": 0,
+      "recover": 0
+    },
+    "student-4": {
+      "work": 98,
+      "support": 0,
+      "disrupt": 1,
+      "recover": 1
+    },
+    "student-5": {
+      "work": 100,
+      "support": 0,
+      "disrupt": 0,
+      "recover": 0
+    },
+    "student-6": {
+      "work": 94,
+      "support": 6,
+      "disrupt": 0,
+      "recover": 0
+    },
+    "student-7": {
+      "work": 101,
+      "support": 0,
+      "disrupt": 0,
+      "recover": 0
+    },
+    "student-8": {
+      "work": 102,
+      "support": 0,
+      "disrupt": 0,
+      "recover": 0
+    },
+    "student-9": {
+      "work": 94,
+      "support": 0,
+      "disrupt": 2,
+      "recover": 4
+    },
+    "student-10": {
+      "work": 97,
+      "support": 0,
+      "disrupt": 1,
+      "recover": 2
+    },
+    "student-11": {
+      "work": 102,
+      "support": 0,
+      "disrupt": 0,
+      "recover": 0
+    },
+    "student-12": {
+      "work": 94,
+      "support": 6,
+      "disrupt": 0,
+      "recover": 0
+    },
+    "student-13": {
+      "work": 98,
+      "support": 0,
+      "disrupt": 0,
+      "recover": 2
+    },
+    "student-14": {
+      "work": 100,
+      "support": 0,
+      "disrupt": 0,
+      "recover": 0
+    },
+    "student-15": {
+      "work": 94,
+      "support": 6,
+      "disrupt": 0,
+      "recover": 0
+    },
+    "student-16": {
+      "work": 61,
+      "support": 0,
+      "disrupt": 37,
+      "recover": 2
+    },
+    "student-17": {
+      "work": 94,
+      "support": 0,
+      "disrupt": 3,
+      "recover": 3
+    },
+    "student-18": {
+      "work": 82,
+      "support": 5,
+      "disrupt": 12,
+      "recover": 1
+    },
+    "student-19": {
+      "work": 99,
+      "support": 0,
+      "disrupt": 0,
+      "recover": 2
+    },
+    "student-20": {
+      "work": 100,
+      "support": 0,
+      "disrupt": 0,
+      "recover": 0
+    },
+    "student-21": {
+      "work": 93,
+      "support": 1,
+      "disrupt": 0,
+      "recover": 6
+    },
+    "student-22": {
+      "work": 99,
+      "support": 0,
+      "disrupt": 1,
+      "recover": 0
+    },
+    "student-23": {
+      "work": 100,
+      "support": 0,
+      "disrupt": 0,
+      "recover": 0
+    },
+    "student-24": {
+      "work": 77,
+      "support": 0,
+      "disrupt": 2,
+      "recover": 21
+    },
+    "student-25": {
+      "work": 98,
+      "support": 0,
+      "disrupt": 0,
+      "recover": 2
+    }
+  }
+}

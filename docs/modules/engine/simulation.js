@@ -1,3 +1,6 @@
+import { TargetingSystem } from '../systems/TargetingSystem.js';
+import { RelationIndex } from '../systems/RelationIndex.js';
+import { emptyDebugMetrics, recordTick, eventPriority } from './diagnostics.js';
 import { createActionRules } from '../data/rules.js';
 import { resolveActionRound, validateActionRules } from './actions.js';
 import { SeededRandom } from './random.js';
@@ -25,6 +28,10 @@ export class Simulation {
     teacherRules;
     decisions = [];
     abilityUsage = new AbilityUsage();
+    targeting;
+    relationIndex;
+    diagnostics = emptyDebugMetrics();
+    get debugMetrics() { return { ...this.diagnostics }; }
     lessonResults;
     absentStudents;
     absentRelations;
@@ -41,6 +48,12 @@ export class Simulation {
         for (const seat of layout.seats)
             if (seat.studentId && !activeIds.has(seat.studentId))
                 seat.studentId = null;
+        for (const seat of layout.seats) {
+            Object.freeze(seat.tags);
+            Object.freeze(seat);
+        }
+        Object.freeze(layout.seats);
+        Object.freeze(layout);
         this.scenario.classroom.currentLayout = layout;
         this.scenario.students = this.scenario.students.filter(s => activeIds.has(s.id));
         if (this.scenario.classRelations)
@@ -58,6 +71,8 @@ export class Simulation {
         this.seed = seed;
         this.random = new SeededRandom(seed);
         const seats = new ClassroomLayoutSystem(layout);
+        this.targeting = new TargetingSystem(seats);
+        this.relationIndex = this.scenario.classRelations ? new RelationIndex(this.scenario.classRelations) : undefined;
         this.scenario.students.sort((a, b) => {
             const left = seats.getStudentSeat(a.id);
             const right = seats.getStudentSeat(b.id);
@@ -103,7 +118,7 @@ export class Simulation {
         });
     }
     emit(event) {
-        this.history.push(structuredClone({ ...event, sequence: this.history.length + 1,
+        this.history.push(structuredClone({ ...event, priority: eventPriority(event), sequence: this.history.length + 1,
             lessonId: this.scenario.lesson.id,
             chapterId: this.scenario.lesson.chapters[this.chapterIndex].id, round: this.round, }));
     }
@@ -113,20 +128,25 @@ export class Simulation {
     }
     resolveRound() {
         this.requireState('ROUND_READY');
+        const started = performance.now();
         const start = this.history.length;
         this.phase = 'ROUND_RESOLVING';
         this.round++;
         this.roundInChapter++;
         this.emit({ type: 'ROUND_STARTED' });
-        const result = resolveActionRound(this.scenario.students, this.students, this.random, this.rules, this.scenario.lesson, this.scenario.lesson.chapters[this.chapterIndex].id, { abilityUsage: this.abilityUsage, learningRules: this.scenario.learningRules, interactionRules: this.scenario.interactionRules, classroom: this.scenario.classroom, archetypes: this.scenario.archetypes,
+        const result = resolveActionRound(this.scenario.students, this.students, this.random, this.rules, this.scenario.lesson, this.scenario.lesson.chapters[this.chapterIndex].id, { validated: true, targeting: this.targeting, relationIndex: this.relationIndex, abilityUsage: this.abilityUsage, learningRules: this.scenario.learningRules, interactionRules: this.scenario.interactionRules, classroom: this.scenario.classroom, archetypes: this.scenario.archetypes,
             classRelations: this.scenario.classRelations, relations: this.scenario.relations ?? [], abilities: this.scenario.reactionAbilities ?? [] }, { teacher: this.teacher, rules: this.teacherRules });
         this.students = result.students;
         for (const event of result.events)
             this.emit(event);
         this.emit({ type: 'ROUND_ENDED', students: this.students });
         this.phase = 'ROUND_RESULT';
-        return structuredClone(this.history.slice(start));
+        const events = structuredClone(this.history.slice(start));
+        recordTick(this.diagnostics, result.events, result.queueMetrics, performance.now() - started);
+        return events;
     }
+    /** Un tick pédagogique : toutes les actions principales puis leurs effets bornés. */
+    resolveTick() { return this.resolveRound(); }
     // Le futur rendu appelle cette méthode après avoir joué les événements du round.
     acknowledgeRoundResult() {
         this.requireState('ROUND_RESULT');

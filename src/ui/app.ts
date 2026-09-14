@@ -2,7 +2,10 @@ import { getRelation, modifyRelation, personalityLabels, personalityTraits } fro
 import { summarizeRound } from './roundSummary.js';
 import { chapterMastery, masteryRequirement, moraleChances } from '../engine/interactions.js';
 import { moraleMultiplier } from '../engine/combat.js';
-import { createPreparationPrototype } from '../data/preparationPrototype.js';
+import { createFullClassPrototype } from '../data/fullClassPrototype.js';
+import { createClassroomActionRules } from '../data/rules.js';
+import { getClassMetrics } from '../systems/ClassMetrics.js';
+import { visualEvents, type SimulationSpeed } from './eventPlayback.js';
 import { ClassPreparation, GAME_STATE, type PlanStorage } from '../systems/ClassPreparation.js';
 import { ClassroomPreparationView } from './ClassroomPreparationView.js';
 import { ClassroomLayoutSystem } from '../systems/ClassroomLayoutSystem.js';
@@ -18,7 +21,7 @@ import { createActionRules } from '../data/rules.js';
 import { effectiveStats } from '../engine/effects.js';
 import { effectiveAbility } from '../engine/abilities.js';
 
-const scenario = createPreparationPrototype();
+const scenario = createFullClassPrototype();
 let storage: PlanStorage | undefined;
 try { storage = window.localStorage; } catch { /* Le jeu reste disponible sans stockage. */ }
 const preparation = new ClassPreparation(scenario, storage);
@@ -39,6 +42,17 @@ const statNames = { intelligence: 'Intelligence', discipline: 'Discipline', mora
 const el = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const advance = el<HTMLButtonElement>('advance');
 const seed = el<HTMLInputElement>('seed');
+const speed = el<HTMLSelectElement>('simulation-speed');
+const metricsPanel=el('class-metrics');
+const totalRounds=scenario.lesson.chapters.reduce((sum,c)=>sum+c.roundCount,0);
+el<HTMLProgressElement>('lesson-progress').max=totalRounds;
+el('class-size').textContent=`LA CLASSE · ${scenario.classroom.rows} × ${scenario.classroom.columns} · ${scenario.students.length} élèves`;
+for(const direction of [-1,1]) el(direction<0 ? 'scroll-left' : 'scroll-right').onclick=()=>el('seat-viewport').scrollBy({left:direction*240,behavior:'smooth'});
+function renderMetrics() {
+  const states=gameState===GAME_STATE.CLASS_PREPARATION ? scenario.students.filter(s=>s.present!==false).map(s=>({studentId:s.id,lessonUnderstanding:s.knowledge?.[scenario.lesson.conceptIds[0]!] ?? 0,concentration:s.concentration,morale:s.morale,effects:[],chapters:[]})) : [...shownStates.values()];
+  const m=getClassMetrics(scenario.students,states);
+  metricsPanel.textContent=`${m.count} présents · ${gameState===GAME_STATE.CLASS_PREPARATION ? 'Acquis' : 'Compréhension'} ${m.averageProgress.toFixed(0)} % · Concentration ${m.averageConcentration.toFixed(0)} · Moral ${m.averageMorale.toFixed(0)} · Discipline ${m.averageDiscipline.toFixed(0)} | En difficulté ${m.distribution.struggling} · Partiels ${m.distribution.partial} · Acquis ${m.distribution.acquired} · Maîtrisés ${m.distribution.mastered}`;
+}
 const restart = el<HTMLFormElement>('restart');
 const log = el<HTMLOListElement>('log');
 const lessonPanel = document.createElement('section');
@@ -49,6 +63,7 @@ const studentName = (id: string) => scenario.students.find(s => s.id === id)?.na
 
 function renderStudents() {
   if (gameState === GAME_STATE.CLASS_PREPARATION || !selected) return;
+  renderMetrics();
   const matrixOpen = el('student-detail').querySelector('details')?.open ?? false;
   for (const student of scenario.students) {
     const button = el<HTMLButtonElement>(student.id);
@@ -117,12 +132,18 @@ function renderStudents() {
     .filter(other => areAdjacent(student, other, scenario.classroom))
     .map(other => `${other.name} ${getRelation(shownRelations, student.id, other.id)}/100`).join(' · ');
   el('student-detail').append(relations);
-  const matrix = document.createElement('details'); matrix.open = matrixOpen;
+  if (matrixOpen) {
+  const matrix = document.createElement('details'); matrix.open = true;
   const summary = document.createElement('summary'); summary.textContent = 'Relations orientées · matrice de debug'; matrix.append(summary);
   const scroll = document.createElement('div'); scroll.style.overflowX = 'auto';
   const table = document.createElement('table');
   table.innerHTML = '<caption>Ligne → colonne · −100 à +100</caption><thead><tr><th scope="col">Élève</th>' + scenario.students.map(s => '<th scope="col">' + s.name + '</th>').join('') + '</tr></thead><tbody>' + scenario.students.map(a => '<tr><th scope="row">' + a.name + '</th>' + scenario.students.map(b => '<td>' + (a.id === b.id ? '—' : getRelation(shownRelations, a.id, b.id)) + '</td>').join('') + '</tr>').join('') + '</tbody>';
   scroll.append(table); matrix.append(scroll); el('student-detail').append(matrix);
+  } else {
+    const matrix=document.createElement('details');
+    const summary=document.createElement('summary');summary.textContent='Relations orientées · matrice de debug';matrix.append(summary);
+    matrix.addEventListener('toggle',()=>{if(matrix.open) renderStudents();},{once:true});el('student-detail').append(matrix);
+  }
   const p = student.progression;
   if (p) {
     const section = document.createElement('section');
@@ -214,6 +235,7 @@ function renderTeacher() {
 actionSelect.addEventListener('change', renderTeacher);
 targetSelect.addEventListener('change', () => { selected = targetSelect.value; renderStudents(); renderTeacher(); });
 function syncControls() {
+  renderMetrics(); speed.disabled=busy;
   if (gameState === GAME_STATE.CLASS_PREPARATION) {
     advance.disabled = preparation.system.validateLayout(scenario.students).length > 0;
     advance.textContent = 'Lancer la leçon';
@@ -240,6 +262,7 @@ function syncControls() {
     scenario.students = result.nextLessonStudents;
     if (result.classRelations) scenario.classRelations = result.classRelations;
     preparation.save();
+    el('debug-stats').textContent=JSON.stringify(simulation.debugMetrics,null,2);
     restart.querySelector('button')!.textContent = 'Préparer la prochaine leçon';
     el('phase').textContent = 'Leçon terminée'; el('status').textContent = 'Chaque élève a son résultat. Sélectionnez un pupitre pour le consulter.';
     advance.textContent = 'Leçon terminée';
@@ -309,7 +332,8 @@ function feedback(studentId: string, text: string) {
   el(studentId).querySelector('.seat-feedback')!.textContent = text;
 }
 async function showEvents(events: GameEvent[]) {
-  for (const event of events) {
+  const playback=speed.value as SimulationSpeed;
+  for (const event of visualEvents(events,playback)) {
     if (event.type === 'LESSON_RESULTS') {
       scenario.students = simulation.persistentStudents;
       el('round-result').hidden = true;
@@ -443,11 +467,16 @@ async function showEvents(events: GameEvent[]) {
       shown = new Map(event.students.map(s => [s.studentId, s.lessonUnderstanding])); renderStudents();
       el<HTMLProgressElement>('lesson-progress').value = event.round;
     }
-    if (event.type === 'COMBINED_ATTACK_STARTED' || event.type === 'COMBINED_ATTACK_RESOLVED' || event.type === 'REACTION_TRIGGERED' || event.type === 'UNDERSTANDING_CHANGED' || event.type === 'EFFECT_APPLIED' || event.type === 'EXTRA_ACTION_CREATED' || event.type === 'CONCENTRATION_CHANGED' && event.reason !== 'support' || event.type === 'STUDENT_DROPPED_OUT') {
+    if (playback === 'detailed' && (event.type === 'COMBINED_ATTACK_STARTED' || event.type === 'COMBINED_ATTACK_RESOLVED' || event.type === 'REACTION_TRIGGERED' || event.type === 'UNDERSTANDING_CHANGED' || event.type === 'EFFECT_APPLIED' || event.type === 'EXTRA_ACTION_CREATED' || event.type === 'CONCENTRATION_CHANGED' && event.reason !== 'support' || event.type === 'STUDENT_DROPPED_OUT')) {
       // Conserver le temps de lecture même lorsque les mouvements sont désactivés.
       await new Promise(resolve => setTimeout(resolve, event.type === 'COMBINED_ATTACK_STARTED' || event.type === 'REACTION_TRIGGERED' || event.type === 'EFFECT_APPLIED' ? 1100 : 650));
     }
   }
+  shownStates=new Map(simulation.studentStates.map(s=>[s.studentId,s]));
+  shown=new Map([...shownStates.values()].map(s=>[s.studentId,s.lessonUnderstanding]));
+  shownRelations=simulation.classRelations!; shownTeacher=simulation.teacherState;
+  renderStudents();
+  if(playback==='instant') console.info('Simulation instantanée',simulation.debugMetrics);
   clearActionFeedback();
 }
 async function advanceLesson() {
@@ -460,7 +489,7 @@ async function advanceLesson() {
       const chapterId = events[0]!.chapterId;
       const index = scenario.lesson.chapters.findIndex(c => c.id === chapterId);
       el('chapter').textContent = scenario.lesson.chapters[index]!.name;
-      el('chapter-count').textContent = `CHAPITRE ${index + 1} / 2`;
+      el('chapter-count').textContent = `CHAPITRE ${index + 1} / ${scenario.lesson.chapters.length}`;
       el('phase').textContent = 'Les élèves travaillent';
       el('status').textContent = 'Observez leurs progrès et leurs interactions.';
       await showEvents(events);
@@ -473,7 +502,7 @@ async function advanceLesson() {
 advance.addEventListener('click', () => { if (gameState === GAME_STATE.CLASS_PREPARATION) startLesson(); else void advanceLesson(); });
 function startLesson() {
   if (!restart.reportValidity()) return;
-  try { simulation = new Simulation(preparation.prepareLesson(), Number(seed.value)); }
+  try { simulation = new Simulation(preparation.prepareLesson(), Number(seed.value), createClassroomActionRules(scenario.students.filter(s=>s.present!==false).length)); }
   catch (error) { el('status').textContent = (error as Error).message; return; }
   preparationView?.destroy(); preparationView = undefined;
   gameState = GAME_STATE.LESSON;

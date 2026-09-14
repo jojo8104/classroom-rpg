@@ -1,3 +1,4 @@
+import { migratePreparationSave } from './PlanMigration.js';
 import type { PrototypeScenario } from '../domain.js';
 import type { ClassroomLayout, ClassroomPlans } from '../models/ClassroomLayout.js';
 import { ClassroomLayoutSystem, layoutFromClassroom, validateLayout } from './ClassroomLayoutSystem.js';
@@ -18,20 +19,16 @@ export class ClassPreparation {
     try {
       const raw = storage?.getItem(`classroom-rpg:${scenario.classroom.id}:preparation:v1`);
       if (raw) {
-        const saved = JSON.parse(raw);
-        const restored = structuredClone(scenario);
-        restored.students = saved.students;
-        restored.classRelations = saved.classRelations;
-        restored.classroom.currentLayout = saved.plans?.currentLayout;
-        if (saved.plans?.version !== 1 || !Array.isArray(saved.students) ||
-            saved.students.length !== scenario.students.length || saved.students.some((s: {id: string}) => !scenario.students.some(x => x.id === s.id)) ||
-            validateLayout(saved.plans.currentLayout, saved.students).length || validateLayout(saved.plans.defaultLayout, saved.students).length ||
-            validateScenario(restored).length) throw new Error('Sauvegarde invalide.');
+        const original=JSON.parse(raw);
+        const saved = migratePreparationSave(original,scenario);
+        const restored=structuredClone(scenario);
+        restored.students=saved.students;
+        if(saved.classRelations) restored.classRelations=saved.classRelations;
         this.plans = { ...saved.plans, savedLayouts: saved.plans.savedLayouts ?? {} };
         this.initial = structuredClone(this.plans.defaultLayout);
         scenario.students = restored.students;
         if (restored.classRelations) scenario.classRelations = restored.classRelations;
-        this.message = 'Placement et élèves restaurés.';
+        this.message = original.plans.currentLayout.rows!==scenario.classroom.rows || original.plans.currentLayout.columns!==scenario.classroom.columns ? 'Classe agrandie : places, verrous et progrès précédents conservés.' : 'Placement et élèves restaurés.';
       }
     } catch { this.message = 'Sauvegarde indisponible ou incompatible : disposition initiale restaurée.'; }
     this.system = new ClassroomLayoutSystem(this.plans.currentLayout);

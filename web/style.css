@@ -27,3 +27,13 @@
 #placement-preview{border-top:1px solid #c4d0dc;margin-top:20px;font-size:1rem;line-height:1.5}#placement-preview small{font-size:.875rem}
 #student-detail>button{padding:10px;font:inherit}button:focus-visible{outline:3px solid #d4941d;outline-offset:3px}
 @media(max-width:540px){.preparation-seat .seat{padding:8px 4px;min-height:170px}.preparation-seat .seat small{font-size:.75rem}.preparation-seat .seat b{font-size:1.25rem}.seat-lock{font-size:.75rem}.seats{gap:10px 6px}}
+
+/* Classe complète : détails à la sélection, plan logique sans perspective. */
+.classroom{min-width:0}.seat-viewport{max-width:100%;overflow:auto;padding:5px;overscroll-behavior:contain}.seats{gap:10px;min-width:600px;margin-top:16px}
+.seat{padding:10px;min-width:0}.seat .avatar{display:none}.seat-top{display:block}.seat-top strong{font-size:1rem;overflow-wrap:anywhere}.seat .score b{font-size:1.25rem}.seat .score small{display:none}.seat-feedback{min-height:0;font-size:.875rem}.hp-label,.learning-state{font-size:.875rem}.seat .learning-state{min-height:2.5em}
+.preparation-seat .seat{min-height:128px;padding:8px;gap:5px;height:calc(100% - 34px)}.preparation-seat .seat small{font-size:.875rem}.preparation-seat .seat b{font-size:1.25rem}.seat-lock{font-size:.875rem}
+.class-metrics{font-size:.875rem;line-height:1.7;padding:12px;background:#eaf0f7;border-radius:6px}.simulation-debug{grid-column:1/-1;font-size:.875rem}.simulation-debug pre{white-space:pre-wrap}.speed-control{font-size:.875rem}.speed-control select{display:block}.grid-navigation{display:none;justify-content:space-between;gap:12px}.grid-navigation button{padding:10px;font:inherit}
+@media(max-width:900px){.grid-navigation{display:flex}.seat-viewport{border:1px solid #cad3da}.seats{min-width:640px}.preparation-tools{min-width:0}footer{flex-wrap:wrap}}
+
+/* Garder le plan accessible sous un tableau compact. */
+.board{padding:14px 20px}.board h1{font-size:clamp(1.5rem,2.3vw,2rem);margin:12px 0}.board progress{margin-top:12px}.teacher{margin:12px 0}.preparation-tools{margin:12px 0;padding:10px;font-size:.875rem}.class-metrics{padding:8px 12px;margin:10px 0}

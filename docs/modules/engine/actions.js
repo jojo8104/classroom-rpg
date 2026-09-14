@@ -16,6 +16,12 @@ export class ActionQueue {
     reactions = [];
     reactionCounts = new Map();
     accepted = 0;
+    head = 0;
+    reactionHead = 0;
+    maximumSize = 0;
+    maximumDepth = 0;
+    get metrics() { return { accepted: this.accepted, maximumSize: this.maximumSize, maximumDepth: this.maximumDepth }; }
+    measure(depth) { this.maximumSize = Math.max(this.maximumSize, this.pending.length - this.head + this.reactions.length - this.reactionHead); this.maximumDepth = Math.max(this.maximumDepth, depth); }
     extras = new Map();
     limits;
     constructor(limits, maxReactionsPerStudent = 1) {
@@ -42,10 +48,11 @@ export class ActionQueue {
             this.extras.set(action.actorId, count + 1);
         this.pending.push({ ...action });
         this.accepted++;
+        this.measure(action.depth);
         return undefined;
     }
     dequeue() {
-        return this.pending.shift();
+        return this.head < this.pending.length ? this.pending[this.head++] : undefined;
     }
     // Même budget total, voie dédiée vidée avant la reprise du tour suspendu.
     enqueueReaction(reaction) {
@@ -61,13 +68,16 @@ export class ActionQueue {
         this.reactions.push(structuredClone(reaction));
         this.reactionCounts.set(reaction.actorId, count + 1);
         this.accepted++;
+        this.measure(reaction.depth);
         return undefined;
     }
     dequeueReaction() {
-        return this.reactions.shift();
+        return this.reactionHead < this.reactions.length ? this.reactions[this.reactionHead++] : undefined;
     }
 }
 export function validateActionRules(rules, studentCount) {
+    if (rules.actionOrder !== undefined && !['SEQUENTIAL', 'SHUFFLED'].includes(rules.actionOrder))
+        throw new Error('Ordre invalide.');
     for (const value of [rules.maxActionsPerRound, rules.maxExtraActionsPerStudent, rules.maxChainDepth, rules.maxReactionsPerStudent]) {
         if (!Number.isSafeInteger(value) || value < 0)
             throw new Error('Limite de file invalide.');
@@ -97,7 +107,7 @@ export function resolveActionRound(students, initialStates, random, rules, lesso
         reactionSetup.abilityUsage.startRound();
     }
     validateActionRules(rules, students.length);
-    if (reactionSetup) {
+    if (reactionSetup && !reactionSetup.validated) {
         const errors = validateReactionSetup(students, reactionSetup);
         if (errors.length)
             throw new Error(errors.join('\n'));
@@ -142,7 +152,8 @@ export function resolveActionRound(students, initialStates, random, rules, lesso
     }
     const interactionRules = reactionSetup?.interactionRules;
     const social = reactionSetup?.classRelations;
-    const relation = (from, to) => social ? getRelation(social, from, to) : relationBetween(from, to, reactionSetup?.relations ?? []);
+    const relation = (from, to) => social ? (reactionSetup?.relationIndex?.getRelation(from, to) ?? getRelation(social, from, to)) : relationBetween(from, to, reactionSetup?.relations ?? []);
+    const localStudents = (sourceId) => reactionSetup?.targeting ? reactionSetup.targeting.getTargets({ sourceStudentId: sourceId, rangeType: 'ADJACENT' }).map(id => byId.get(id)) : students;
     let socialCursor = 0;
     function socialConsequences() {
         if (!social || !reactionSetup)
@@ -161,7 +172,7 @@ export function resolveActionRound(students, initialStates, random, rules, lesso
                 evolveRelation(social, byId.get(event.sourceId), event.targetId, socialRules.comboDelta, 'combo', events);
             }
             else if (event.type === 'UNDERSTANDING_CHANGED' && event.amount >= socialRules.comparisonThreshold) {
-                for (const observer of students) {
+                for (const observer of localStudents(event.studentId)) {
                     const observerState = states.get(observer.id);
                     if (trait(observer, 'competitive') <= 0 || observerState.concentration <= 0 || !areAdjacent(observer, byId.get(event.studentId), reactionSetup.classroom))
                         continue;
@@ -176,17 +187,23 @@ export function resolveActionRound(students, initialStates, random, rules, lesso
     function supportCandidates(student) {
         if (reactionSetup?.abilityUsage?.reason(student, 'SUPPORT'))
             return [];
-        return students.filter(candidate => candidate.id !== student.id && (!reactionSetup || areAdjacent(student, candidate, reactionSetup.classroom)) && (!interactionRules || reactionSetup &&
+        return localStudents(student.id).filter(candidate => candidate.id !== student.id && (!reactionSetup || areAdjacent(student, candidate, reactionSetup.classroom)) && (!interactionRules || reactionSetup &&
             relation(student.id, candidate.id) >= (social ? relationThreshold(student, interactionRules.mainSupportMinimumRelation) : interactionRules.mainSupportMinimumRelation) &&
             relation(student.id, candidate.id) > 0 && states.get(candidate.id).concentration < 100));
     }
-    for (const student of students) {
+    const actionOrder = [...students];
+    if (rules.actionOrder === 'SHUFFLED')
+        for (let i = actionOrder.length - 1; i > 0; i--) {
+            const j = random.integer(i + 1);
+            [actionOrder[i], actionOrder[j]] = [actionOrder[j], actionOrder[i]];
+        }
+    for (const student of actionOrder) {
         if (interactionRules) {
             queue.enqueue({ actorId: student.id, kind: 'WORK', depth: 0 });
             continue;
         }
         if (teacherContext && reactionSetup && (student.disruptionChance ?? 0) > 0 &&
-            students.some(other => areAdjacent(student, other, reactionSetup.classroom)) &&
+            localStudents(student.id).some(other => areAdjacent(student, other, reactionSetup.classroom)) &&
             random.next() < disruptionChance(student, states.get(student.id))) {
             queue.enqueue({ actorId: student.id, kind: 'DISRUPT', depth: 0 });
             continue;
@@ -210,7 +227,7 @@ export function resolveActionRound(students, initialStates, random, rules, lesso
         if (checks && state.concentration > 0) {
             const support = !social && checks.positive && random.next() < rules.supportChanceByArchetype[student.archetypeId] && supportCandidates(student).length > 0;
             const disrupt = !social && checks.negative && teacherContext && reactionSetup && (student.disruptionChance ?? 0) > 0 &&
-                students.some(other => areAdjacent(student, other, reactionSetup.classroom)) && random.next() < disruptionChance(student, state);
+                localStudents(student.id).some(other => areAdjacent(student, other, reactionSetup.classroom)) && random.next() < disruptionChance(student, state);
             action.kind = disrupt ? 'DISRUPT' : support ? 'SUPPORT' : 'WORK';
             if (social) {
                 const choices = [behaviorCandidate(student, state, 'WORK', 0)];
@@ -219,7 +236,7 @@ export function resolveActionRound(students, initialStates, random, rules, lesso
                     for (const target of supportCandidates(student))
                         choices.push(behaviorCandidate(student, states.get(target.id), 'SUPPORT', relation(student.id, target.id), socialRules.base * chance));
                 if (checks.negative && teacherContext && reactionSetup && (student.disruptionChance ?? 0) + trait(student, 'impulsive') + trait(student, 'sociable') > 0) {
-                    for (const target of students.filter(t => areAdjacent(student, t, reactionSetup.classroom) && states.get(t.id).concentration > 0))
+                    for (const target of localStudents(student.id).filter(t => areAdjacent(student, t, reactionSetup.classroom) && states.get(t.id).concentration > 0))
                         choices.push(behaviorCandidate(student, states.get(target.id), 'DISRUPT', relation(student.id, target.id), socialRules.base * disruptionChance(student, state)));
                 }
                 const chosen = chooseBehavior(choices, random, events);
@@ -285,5 +302,5 @@ export function resolveActionRound(students, initialStates, random, rules, lesso
     }
     socialConsequences();
     endRoundEffects(states.values(), events);
-    return { students: students.map(student => states.get(student.id)), events };
+    return { students: students.map(student => states.get(student.id)), events, queueMetrics: queue.metrics };
 }

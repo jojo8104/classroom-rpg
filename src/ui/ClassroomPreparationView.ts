@@ -4,6 +4,8 @@ import { paragraph, renderStudentCard, signed, tagLabels } from './StudentCard.j
 
 export class ClassroomPreparationView {
   private selected: string;
+  private evaluator: PlacementEvaluationSystem;
+  private evaluatedSystem: ClassPreparation['system'];
   private moving = false;
   private drag: { id: string; x: number; y: number; pointerId: number; active: boolean } | undefined;
   private hover: string | undefined;
@@ -12,6 +14,8 @@ export class ClassroomPreparationView {
   private preview = document.createElement('div');
   private message = document.createElement('p');
   constructor(private preparation: ClassPreparation, private grid: HTMLElement, private detail: HTMLElement) {
+    this.evaluatedSystem=preparation.system;
+    this.evaluator=new PlacementEvaluationSystem(preparation.scenario,preparation.system);
     this.selected = preparation.scenario.students.find(s => s.present !== false)?.id ?? '';
     this.tools.className = 'preparation-tools';
     this.tools.innerHTML = '<p>Glissez un élève sur une place pour le déplacer ou échanger deux élèves. Au clavier, sélectionnez un élève puis « Déplacer » et choisissez une place.</p>';
@@ -34,6 +38,8 @@ export class ClassroomPreparationView {
       if (!drag.active && Math.hypot(event.clientX-drag.x, event.clientY-drag.y) < 7) return;
       if (!drag.active) { drag.active = true; this.selected = drag.id; this.grid.classList.add('dragging'); this.renderDetail(); }
       event.preventDefault();
+      const viewport=this.grid.parentElement!;
+      if(viewport.scrollWidth>viewport.clientWidth) { const bounds=viewport.getBoundingClientRect(); if(event.clientX<bounds.left+30) viewport.scrollBy(-14,0); else if(event.clientX>bounds.right-30) viewport.scrollBy(14,0); }
       const target = document.elementFromPoint(event.clientX,event.clientY)?.closest<HTMLElement>('[data-seat]');
       const seatId = target && this.grid.contains(target) ? target.dataset.seat : undefined;
       if (seatId !== this.hover) {
@@ -48,16 +54,23 @@ export class ClassroomPreparationView {
       if (drag.active) { if (this.hover) this.move(this.hover); else this.render(); }
       this.grid.classList.remove('dragging'); this.hover = undefined;
     }, options);
-    document.addEventListener('pointercancel', () => this.cancel(), options);
-    window.addEventListener('blur', () => this.cancel(), options);
+    document.addEventListener('pointercancel', () => { this.cancel(); this.render(); }, options);
+    window.addEventListener('blur', () => { this.cancel(); this.render(); }, options);
     grid.addEventListener('keydown', event => { if (event.key === 'Escape') { this.cancel(); this.render(); } }, options);
     this.render();
   }
   private cancel() { this.drag = undefined; this.hover = undefined; this.moving = false; this.grid.classList.remove('dragging'); }
   destroy() { this.controller.abort(); this.cancel(); this.tools.remove(); this.grid.replaceChildren(); this.detail.replaceChildren(); }
-  private evaluation() { return new PlacementEvaluationSystem(this.preparation.scenario, this.preparation.system.currentLayout); }
+  private evaluation() {
+    if(this.evaluatedSystem!==this.preparation.system) { this.evaluatedSystem=this.preparation.system; this.evaluator=new PlacementEvaluationSystem(this.preparation.scenario,this.preparation.system); }
+    return this.evaluator;
+  }
   private move(seatId: string) {
-    try { this.preparation.moveStudent(this.selected, seatId); }
+    try {
+      const source=this.preparation.system.getStudentSeat(this.selected)!;
+      this.preparation.moveStudent(this.selected, seatId);
+      this.evaluation().recalculateAffectedPlacements([source.id,seatId]);
+    }
     catch (error) { this.preparation.message = (error as Error).message; }
     this.moving = false; this.render();
     this.grid.querySelector<HTMLButtonElement>(`[data-student="${this.selected}"]`)?.focus();
@@ -72,12 +85,8 @@ export class ClassroomPreparationView {
       cell.style.gridRow = String(seat.row+1); cell.style.gridColumn = String(seat.column+1);
       const student = scenario.students.find(s => s.id === seat.studentId && s.present !== false);
       const label = `${seat.row+1}${String.fromCharCode(65+seat.column)}`;
-      if (this.selected) {
-        const preview = this.evaluation().previewPlacement(this.selected, seat.id);
-        cell.dataset.compatibility = preview.state;
-      }
       const button = document.createElement('button'); button.type = 'button'; button.className = `seat ${student?.archetypeId ?? 'empty'}`;
-      paragraph(button, `Place ${label} · ${seat.tags.map(t => tagLabels[t] ?? t).join(' · ')}`, 'small');
+      paragraph(button, `Place ${label}`, 'small');
       if (student) {
         button.dataset.student = student.id;
         button.classList.add('draggable-student');
@@ -95,7 +104,7 @@ export class ClassroomPreparationView {
       button.onpointerenter = () => { if (this.moving) this.showPreview(seat.id); };
       button.onfocus = () => { if (this.moving) this.showPreview(seat.id); };
       cell.append(button);
-      const lock = document.createElement('button'); lock.type = 'button'; lock.className = 'seat-lock'; lock.textContent = seat.locked ? '🔒 Verrouillée' : 'Verrouiller';
+      const lock = document.createElement('button'); lock.type = 'button'; lock.className = 'seat-lock'; lock.textContent = seat.locked ? '🔒' : 'Verrouiller';
       lock.setAttribute('aria-label', `${seat.locked ? 'Déverrouiller' : 'Verrouiller'} la place ${label}`); lock.setAttribute('aria-pressed', String(seat.locked));
       lock.onclick = () => { this.preparation.setLocked(seat.id, !seat.locked); this.render(); }; cell.append(lock);
       this.grid.append(cell);
@@ -117,6 +126,8 @@ export class ClassroomPreparationView {
     const seat = this.preparation.system.getSeat(seatId)!;
     this.preview.replaceChildren();
     paragraph(this.preview, `Placement ${seat.row+1}${String.fromCharCode(65+seat.column)}`, 'h3');
+    paragraph(this.preview,seat.tags.map(t=>tagLabels[t] ?? t).join(' · '));
+    this.grid.querySelectorAll<HTMLElement>('[data-seat]').forEach(cell=>{ delete cell.dataset.compatibility; if(cell.dataset.seat===seatId) cell.dataset.compatibility=result.state; });
     if (!result.allowed) { paragraph(this.preview, 'Déplacement impossible : place verrouillée.'); return; }
     paragraph(this.preview, `${result.state === 'positive' ? 'Favorable' : result.state === 'negative' ? 'Risqué' : 'Neutre'} · score indicatif ${signed(result.score)}`);
     paragraph(this.preview, `Confort initial : ${signed(result.preference)} moral`);
