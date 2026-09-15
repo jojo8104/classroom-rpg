@@ -5,8 +5,10 @@ export function visualEvents(events, speed) {
         return [...events];
     if (speed === 'instant')
         return events.filter(e => e.type === 'ROUND_ENDED' || e.type === 'LESSON_RESULTS');
-    const important = events.filter(e => (e.priority ?? eventPriority(e)) === 'major' && e.type !== 'LESSON_ENDED');
+    const important = events.filter(e => ((e.priority ?? eventPriority(e)) === 'major' && e.type !== 'LESSON_ENDED') || ['REACTION_TRIGGERED', 'EFFECT_APPLIED', 'DISRUPTION_RESOLVED', 'TEACHER_ACTION_APPLIED'].includes(e.type));
     const snapshot = events.filter(e => e.type === 'ROUND_ENDED');
     // Au plus quatre faits saillants, puis l'état complet. Aucun effet métier n'est supprimé.
-    return [...important.slice(0, 4), ...snapshot];
+    // Settlement must not disappear behind XP/level-up highlights at the end of a lesson.
+    const settlement = events.filter(e => e.type === 'LESSON_RESULTS');
+    return [...important.filter(e => e.type !== 'LESSON_RESULTS').slice(0, 4), ...snapshot, ...settlement];
 }

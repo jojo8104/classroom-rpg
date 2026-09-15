@@ -358,3 +358,11 @@ npm run benchmark -- --rows 5 --columns 6 --ticks 100 --lessons 10
 ```
 
 Voir [Roadmap 7](roadmap7.md), [le compte rendu et ses limites](VALIDATION_ROADMAP7.md) et [la mesure enregistrée](benchmark-roadmap7.json).
+
+## Scène 2.5D — Roadmap 8
+
+Pendant la leçon, les 25 pupitres sont projetés en perspective avec personnages orientés, profondeur par rangée et effets d'aide, de perturbation ou de combo. Sélectionnez un élève pour sa fiche compacte ; un second clic ou Échap la ferme. Les réglages Graphismes et Vue permettent de réduire les mouvements et de zoomer sur mobile.
+
+La préparation conserve son plan logique et ses sauvegardes. Le moteur de simulation et ses règles ne changent pas. Les six orientations utilisent un personnage témoin commun ; les animations sont courtes et extensibles par atlas.
+
+Voir [la validation de Roadmap 8](VALIDATION_ROADMAP8.md). `npm run build:pages` reconstruit également les modules de rendu et les ressources dans `docs/`.
