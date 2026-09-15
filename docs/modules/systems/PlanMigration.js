@@ -1,3 +1,4 @@
+import { initializeConcepts } from './Concepts.js';
 import { createLayout } from '../models/ClassroomLayout.js';
 import { validateLayout } from './ClassroomLayoutSystem.js';
 import { validateScenario } from '../engine/validation.js';
@@ -12,6 +13,7 @@ export function migratePreparationSave(saved, scenario) {
     if (validateScenario(oldScenario).length)
         throw new Error('Profils sauvegardés invalides.');
     const students = scenario.students.map(current => structuredClone(saved.students.find(s => s.id === current.id) ?? current));
+    students.forEach(initializeConcepts);
     const migrate = (old) => {
         const { rows, columns } = scenario.classroom;
         if (old.rows === rows && old.columns === columns && students.length === saved.students.length)

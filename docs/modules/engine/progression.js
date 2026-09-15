@@ -37,7 +37,7 @@ export function selectSpecialization(student, id) {
 }
 // Le bilan parcourt une seule fois les événements sources. Les événements dérivés
 // (concentration, effets temporaires, moral, relations) ne sont jamais récompensés deux fois.
-export function settleProgression(student, history, understanding) {
+export function settleProgression(student, history, understanding, concepts) {
     const p = student.progression;
     const usage = emptyUsage(), counts = { participation: 1 };
     const add = (kind) => { counts[kind] = (counts[kind] ?? 0) + 1; };
@@ -70,7 +70,7 @@ export function settleProgression(student, history, understanding) {
     for (const key of Object.keys(progressionRules.rewards)) {
         const value = Math.min(counts[key] ?? 0, progressionRules.caps[key]) * progressionRules.rewards[key];
         if (value)
-            rewards[key] = value;
+            rewards[key] = Math.round(value * (concepts?.service.learningMultiplier(student, concepts.context.lesson.tags ?? []) ?? 1));
     }
     const xpGained = Object.values(rewards).reduce((a, b) => a + b, 0), beforeLevel = p.level;
     const events = [];
@@ -91,5 +91,7 @@ export function settleProgression(student, history, understanding) {
     }
     if (beforeLevel < progressionRules.specializationLevel && p.level >= progressionRules.specializationLevel)
         events.push({ type: 'SPECIALIZATION_AVAILABLE', studentId: student.id, suggestions: specializationTrends(student) });
+    if (concepts)
+        events.push(...concepts.service.attemptDiscoveries({ ...concepts.context, student, lessonProgress: understanding }, xpGained, concepts.random));
     return { result: { xpGained, beforeLevel, afterLevel: p.level, xp: p.xp, rewards, unlockedAbilities, usage }, events };
 }

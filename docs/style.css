@@ -55,3 +55,20 @@
 /* Keep the next row's heads clear of the previous row's labels. */
 .student-desk .student-sprite{left:82px;top:22px;width:66px;height:132px}.student-desk .desk-chair{top:85px}.student-desk .desk-surface{top:91px}.student-desk .desk-info{top:95px}.student-desk.seat strong{font-size:22px}.student-desk.seat .learning-state{font-size:14px}.student-desk.seat progress{height:6px;margin:2px 0}
 @media(max-width:900px){body:has(.classroom-scene) #student-detail:not([hidden]){position:fixed;left:16px;right:16px;bottom:12px;max-height:38vh;z-index:2000;background:white;border:2px solid #2861d7;border-radius:10px;padding:14px 18px;box-shadow:0 8px 28px #17304340}body:has(.classroom-scene) #student-detail h2{font-size:1.5rem;margin:10px 0}body:has(.classroom-scene) #student-detail .understanding{font-size:1.8rem;margin:8px 0}body:has(.classroom-scene) #student-detail dl{margin:8px 0}}
+
+/* Agenda : surface fonctionnelle, indépendante du plateau de classe. */
+#agenda { grid-column: 1 / -1; padding: 1rem; border: 1px solid #607080; background: #172432; color: #f0f4f8; margin-bottom: 1rem; }
+#agenda p { line-height: 1.5; }
+.agenda-toolbar, .agenda-editor { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; margin: 1rem 0; }
+.agenda-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr)); gap: .6rem; }
+.agenda-day { padding: .7rem; border: 1px solid #77899b; min-width: 0; }
+.agenda-day.holiday { background: #29333e; }
+.agenda-day.event { border-color: #e6b85b; }
+.agenda-slot { border-top: 1px solid #657688; padding: .7rem 0; overflow-wrap: anywhere; }
+#agenda button, #agenda select, #agenda textarea { font: inherit; max-width: 100%; padding: .5rem; }
+#agenda button { margin: .2rem; }
+#agenda textarea { display: block; width: 100%; box-sizing: border-box; }
+#agenda select { min-width: 0; }
+#agenda details { margin-top: 1rem; }
+.agenda-editor { border: 1px solid #c6a66a; padding: 1rem; }
+.agenda-editor h3 { width: 100%; }

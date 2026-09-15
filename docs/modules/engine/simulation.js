@@ -1,3 +1,6 @@
+import { getTeachingMode } from '../data/teachingModes.js';
+import { lessonProgress } from '../systems/Curriculum.js';
+import { Concepts, initializeConcepts } from '../systems/Concepts.js';
 import { TargetingSystem } from '../systems/TargetingSystem.js';
 import { RelationIndex } from '../systems/RelationIndex.js';
 import { emptyDebugMetrics, recordTick, eventPriority } from './diagnostics.js';
@@ -14,13 +17,12 @@ import { settleProgression, selectSpecialization } from './progression.js';
 import { ClassroomLayoutSystem, layoutFromClassroom } from '../systems/ClassroomLayoutSystem.js';
 import { getSeatPreferenceModifier } from '../systems/PlacementEvaluationSystem.js';
 export class Simulation {
+    mode;
     scenario;
     rules;
     random;
     seed;
     phase = 'ROUND_READY';
-    chapterIndex = 0;
-    roundInChapter = 0;
     round = 0;
     students;
     history = [];
@@ -40,7 +42,17 @@ export class Simulation {
         const errors = validateScenario(scenario);
         if (errors.length)
             throw new Error(errors.join('\n'));
+        this.mode = getTeachingMode(scenario.activity?.teachingMode ?? 'lecture');
+        if (scenario.activity && scenario.activity.lessonId !== scenario.lesson.id)
+            throw new Error('Activité : leçon incohérente.');
+        if (!(scenario.lesson.availableTeachingModes ?? ['lecture']).includes(this.mode.id))
+            throw new Error('Mode indisponible pour cette leçon.');
+        if (this.mode.resolution === 'deferred')
+            throw new Error('Les devoirs attendent une résolution différée (Roadmap 10).');
         this.scenario = structuredClone(scenario);
+        if (this.mode.prepareLesson)
+            this.scenario.lesson = this.mode.prepareLesson(this.scenario.lesson);
+        this.scenario.students.filter(s => s.present !== false).forEach(initializeConcepts);
         this.absentStudents = this.scenario.students.filter(s => s.present === false);
         const activeIds = new Set(this.scenario.students.filter(s => s.present !== false).map(s => s.id));
         this.absentRelations = this.scenario.classRelations?.links.filter(l => !activeIds.has(l.from) || !activeIds.has(l.to)) ?? [];
@@ -81,6 +93,7 @@ export class Simulation {
         this.students = createLessonStates(this.scenario.students, this.scenario.lesson);
         for (const state of this.students) {
             const student = this.scenario.students.find(s => s.id === state.studentId);
+            this.mode.prepareStudent?.(student, state);
             state.morale = Math.max(0, Math.min(100, state.morale + getSeatPreferenceModifier(student, seats.getStudentSeat(student.id))));
         }
         validateActionRules(this.rules, this.students.length);
@@ -90,7 +103,6 @@ export class Simulation {
             }
         }
         this.emit({ type: 'LESSON_STARTED', seed });
-        this.emit({ type: 'CHAPTER_STARTED' });
     }
     get classRelations() { return this.scenario.classRelations ? { links: structuredClone([...this.scenario.classRelations.links, ...this.absentRelations]) } : undefined; }
     get persistentStudents() { return structuredClone([...this.scenario.students, ...this.absentStudents]); }
@@ -101,11 +113,12 @@ export class Simulation {
             throw new Error('Élève inconnu.');
         this.emit(selectSpecialization(student, id));
     }
+    get session() { return { lessonId: this.scenario.lesson.id, teachingMode: this.mode.id, round: this.round, state: this.phase, students: this.studentStates }; }
     get state() { return this.phase; }
     get events() { return structuredClone(this.history); }
     get studentStates() { return structuredClone(this.students); }
     get teacherState() { return structuredClone(this.teacher); }
-    get hasNextRound() { return this.round < this.scenario.lesson.chapters.reduce((sum, chapter) => sum + chapter.roundCount, 0); }
+    get hasNextRound() { return this.round < this.scenario.lesson.roundCount; }
     teacherContext() {
         return { teacher: this.teacher, students: this.scenario.students, states: this.students,
             lesson: this.scenario.lesson, rules: this.teacherRules, hasNextRound: this.hasNextRound };
@@ -120,7 +133,8 @@ export class Simulation {
     emit(event) {
         this.history.push(structuredClone({ ...event, priority: eventPriority(event), sequence: this.history.length + 1,
             lessonId: this.scenario.lesson.id,
-            chapterId: this.scenario.lesson.chapters[this.chapterIndex].id, round: this.round, }));
+            round: this.round,
+        }));
     }
     requireState(expected) {
         if (this.phase !== expected)
@@ -132,13 +146,20 @@ export class Simulation {
         const start = this.history.length;
         this.phase = 'ROUND_RESOLVING';
         this.round++;
-        this.roundInChapter++;
         this.emit({ type: 'ROUND_STARTED' });
-        const result = resolveActionRound(this.scenario.students, this.students, this.random, this.rules, this.scenario.lesson, this.scenario.lesson.chapters[this.chapterIndex].id, { validated: true, targeting: this.targeting, relationIndex: this.relationIndex, abilityUsage: this.abilityUsage, learningRules: this.scenario.learningRules, interactionRules: this.scenario.interactionRules, classroom: this.scenario.classroom, archetypes: this.scenario.archetypes,
+        const result = resolveActionRound(this.scenario.students, this.students, this.random, this.rules, this.scenario.lesson, { learningMultiplier: student => new Concepts(this.scenario.concepts).learningMultiplier(student, this.scenario.lesson.tags ?? []), validated: true, targeting: this.targeting, relationIndex: this.relationIndex, abilityUsage: this.abilityUsage, learningRules: this.scenario.learningRules, interactionRules: this.scenario.interactionRules, classroom: this.scenario.classroom, archetypes: this.scenario.archetypes,
             classRelations: this.scenario.classRelations, relations: this.scenario.relations ?? [], abilities: this.scenario.reactionAbilities ?? [] }, { teacher: this.teacher, rules: this.teacherRules });
         this.students = result.students;
         for (const event of result.events)
             this.emit(event);
+        const concepts = new Concepts(this.scenario.concepts);
+        for (const student of this.scenario.students) {
+            const state = this.students.find(s => s.studentId === student.id);
+            const gain = result.events.filter(e => e.type === 'UNDERSTANDING_CHANGED' && e.studentId === student.id).reduce((sum, e) => sum + (e.type === 'UNDERSTANDING_CHANGED' ? e.amount : 0), 0);
+            for (const event of concepts.attemptDiscoveries({ student, lesson: this.scenario.lesson, lessonProgress: state.lessonUnderstanding, teacher: this.teacher,
+                teacherModifier: this.decisions.at(-1)?.kind === 'REEXPLAIN' ? 0.1 : 0, modeMultiplier: this.mode.conceptMultiplier }, gain, this.random))
+                this.emit(event);
+        }
         this.emit({ type: 'ROUND_ENDED', students: this.students });
         this.phase = 'ROUND_RESULT';
         const events = structuredClone(this.history.slice(start));
@@ -173,42 +194,41 @@ export class Simulation {
         return structuredClone(this.history.slice(start));
     }
     advanceAfterIntervention() {
-        const chapter = this.scenario.lesson.chapters[this.chapterIndex];
-        if (this.roundInChapter === chapter.roundCount) {
-            this.emit({ type: 'CHAPTER_ENDED' });
-            if (this.chapterIndex === this.scenario.lesson.chapters.length - 1) {
-                this.phase = 'LESSON_FINISHED';
-                this.emit({ type: 'LESSON_ENDED', results: this.individualResults() });
-                this.lessonResults = this.individualResults();
-                // Socle de connaissances : consolidation modérée, une seule fois par leçon.
-                for (const student of this.scenario.students) {
-                    if (!student.knowledge)
-                        continue;
-                    const understanding = this.lessonResults.find(r => r.studentId === student.id).understanding;
-                    for (const concept of this.scenario.lesson.conceptIds) {
-                        const before = student.knowledge[concept] ?? 0;
-                        student.knowledge[concept] = Math.round((before + Math.max(0, understanding - before) * 0.15) * 100) / 100;
-                    }
-                }
-                const progressionEvents = [];
-                for (const student of this.scenario.students) {
-                    if (!student.progression)
-                        continue;
-                    const result = this.lessonResults.find(r => r.studentId === student.id);
-                    const settled = settleProgression(student, this.history, result.understanding);
-                    result.progression = settled.result;
-                    progressionEvents.push(...settled.events);
-                }
-                if (progressionEvents.length) {
-                    this.emit({ type: 'LESSON_RESULTS', results: structuredClone(this.lessonResults) });
-                    for (const event of progressionEvents)
-                        this.emit(event);
-                }
-                return;
+        if (!this.hasNextRound) {
+            this.phase = 'LESSON_FINISHED';
+            this.emit({ type: 'LESSON_ENDED', results: this.individualResults() });
+            this.lessonResults = this.individualResults();
+            for (const student of this.scenario.students) {
+                const before = lessonProgress(student, this.scenario.lesson.id).mastery;
+                const understanding = this.lessonResults.find(r => r.studentId === student.id).understanding;
+                student.lessonMastery ??= {};
+                student.lessonMastery[this.scenario.lesson.id] = Math.round(Math.min(100, Math.max(0, before + this.mode.masteryGain(before, understanding))) * 100) / 100;
             }
-            this.chapterIndex++;
-            this.roundInChapter = 0;
-            this.emit({ type: 'CHAPTER_STARTED' });
+            // Socle de connaissances : consolidation modérée, une seule fois par leçon.
+            for (const student of this.scenario.students) {
+                if (!student.knowledge)
+                    continue;
+                const understanding = this.lessonResults.find(r => r.studentId === student.id).understanding;
+                for (const concept of this.scenario.lesson.conceptIds) {
+                    const before = student.knowledge[concept] ?? 0;
+                    student.knowledge[concept] = Math.round((before + Math.max(0, understanding - before) * 0.15 * this.mode.conceptMultiplier) * 100) / 100;
+                }
+            }
+            const progressionEvents = [];
+            for (const student of this.scenario.students) {
+                if (!student.progression)
+                    continue;
+                const result = this.lessonResults.find(r => r.studentId === student.id);
+                const settled = settleProgression(student, this.history, result.understanding, { service: new Concepts(this.scenario.concepts), context: { lesson: this.scenario.lesson, teacher: this.teacher, modeMultiplier: this.mode.conceptMultiplier }, random: this.random });
+                result.progression = settled.result;
+                progressionEvents.push(...settled.events);
+            }
+            if (progressionEvents.length) {
+                this.emit({ type: 'LESSON_RESULTS', results: structuredClone(this.lessonResults) });
+                for (const event of progressionEvents)
+                    this.emit(event);
+            }
+            return;
         }
         this.phase = 'ROUND_READY';
     }
@@ -217,7 +237,7 @@ export class Simulation {
             return structuredClone(this.lessonResults);
         return this.students.map(student => ({ studentId: student.studentId,
             lessonId: this.scenario.lesson.id, understanding: student.lessonUnderstanding,
-            chapters: structuredClone(student.chapters), concentration: student.concentration, morale: student.morale }));
+            progress: student.progress, missedRounds: student.missedRounds, concentration: student.concentration, morale: student.morale }));
     }
     getResult() {
         this.requireState('LESSON_FINISHED');
@@ -229,7 +249,7 @@ export class Simulation {
             teacher: this.teacherState, decisions: structuredClone(this.decisions) };
     }
     runToCompletion(decisions = []) {
-        const remaining = this.scenario.lesson.chapters.reduce((sum, chapter) => sum + chapter.roundCount, 0) - this.round +
+        const remaining = this.scenario.lesson.roundCount - this.round +
             (this.phase === 'ROUND_RESULT' || this.phase === 'TEACHER_INTERVENTION' ? 1 : 0);
         if (decisions.length > remaining)
             throw new Error('Trop de décisions pour les rounds restants.');

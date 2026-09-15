@@ -1,3 +1,4 @@
+import { initializeConcepts } from './Concepts.js';
 import { migratePreparationSave } from './PlanMigration.js';
 import { ClassroomLayoutSystem, layoutFromClassroom } from './ClassroomLayoutSystem.js';
 export const GAME_STATE = { CLASS_PREPARATION: 'class_preparation', LESSON: 'lesson', LESSON_RESULT: 'lesson_result' };
@@ -35,6 +36,7 @@ export class ClassPreparation {
         catch {
             this.message = 'Sauvegarde indisponible ou incompatible : disposition initiale restaurée.';
         }
+        scenario.students.forEach(initializeConcepts);
         this.system = new ClassroomLayoutSystem(this.plans.currentLayout);
         this.sync();
     }

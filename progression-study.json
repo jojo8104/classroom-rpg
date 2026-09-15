@@ -1,0 +1,2100 @@
+{
+  "seed": 12345,
+  "lessons": 20,
+  "history": [
+    {
+      "lesson": 1,
+      "students": [
+        {
+          "id": "student-1",
+          "xp": 11,
+          "level": 1,
+          "gained": 11
+        },
+        {
+          "id": "student-2",
+          "xp": 11,
+          "level": 1,
+          "gained": 11
+        },
+        {
+          "id": "student-3",
+          "xp": 11,
+          "level": 1,
+          "gained": 11
+        },
+        {
+          "id": "student-4",
+          "xp": 11,
+          "level": 1,
+          "gained": 11
+        },
+        {
+          "id": "student-5",
+          "xp": 9,
+          "level": 1,
+          "gained": 9
+        },
+        {
+          "id": "student-6",
+          "xp": 11,
+          "level": 1,
+          "gained": 11
+        },
+        {
+          "id": "student-7",
+          "xp": 11,
+          "level": 1,
+          "gained": 11
+        },
+        {
+          "id": "student-8",
+          "xp": 11,
+          "level": 1,
+          "gained": 11
+        },
+        {
+          "id": "student-9",
+          "xp": 11,
+          "level": 1,
+          "gained": 11
+        },
+        {
+          "id": "student-10",
+          "xp": 11,
+          "level": 1,
+          "gained": 11
+        }
+      ]
+    },
+    {
+      "lesson": 2,
+      "students": [
+        {
+          "id": "student-1",
+          "xp": 22,
+          "level": 2,
+          "gained": 11
+        },
+        {
+          "id": "student-2",
+          "xp": 22,
+          "level": 2,
+          "gained": 11
+        },
+        {
+          "id": "student-3",
+          "xp": 20,
+          "level": 2,
+          "gained": 9
+        },
+        {
+          "id": "student-4",
+          "xp": 22,
+          "level": 2,
+          "gained": 11
+        },
+        {
+          "id": "student-5",
+          "xp": 20,
+          "level": 2,
+          "gained": 11
+        },
+        {
+          "id": "student-6",
+          "xp": 22,
+          "level": 2,
+          "gained": 11
+        },
+        {
+          "id": "student-7",
+          "xp": 22,
+          "level": 2,
+          "gained": 11
+        },
+        {
+          "id": "student-8",
+          "xp": 20,
+          "level": 2,
+          "gained": 9
+        },
+        {
+          "id": "student-9",
+          "xp": 22,
+          "level": 2,
+          "gained": 11
+        },
+        {
+          "id": "student-10",
+          "xp": 20,
+          "level": 2,
+          "gained": 9
+        }
+      ]
+    },
+    {
+      "lesson": 3,
+      "students": [
+        {
+          "id": "student-1",
+          "xp": 37,
+          "level": 2,
+          "gained": 15
+        },
+        {
+          "id": "student-2",
+          "xp": 37,
+          "level": 2,
+          "gained": 15
+        },
+        {
+          "id": "student-3",
+          "xp": 31,
+          "level": 2,
+          "gained": 11
+        },
+        {
+          "id": "student-4",
+          "xp": 33,
+          "level": 2,
+          "gained": 11
+        },
+        {
+          "id": "student-5",
+          "xp": 31,
+          "level": 2,
+          "gained": 11
+        },
+        {
+          "id": "student-6",
+          "xp": 37,
+          "level": 2,
+          "gained": 15
+        },
+        {
+          "id": "student-7",
+          "xp": 37,
+          "level": 2,
+          "gained": 15
+        },
+        {
+          "id": "student-8",
+          "xp": 31,
+          "level": 2,
+          "gained": 11
+        },
+        {
+          "id": "student-9",
+          "xp": 37,
+          "level": 2,
+          "gained": 15
+        },
+        {
+          "id": "student-10",
+          "xp": 31,
+          "level": 2,
+          "gained": 11
+        }
+      ]
+    },
+    {
+      "lesson": 4,
+      "students": [
+        {
+          "id": "student-1",
+          "xp": 50,
+          "level": 3,
+          "gained": 13
+        },
+        {
+          "id": "student-2",
+          "xp": 48,
+          "level": 2,
+          "gained": 11
+        },
+        {
+          "id": "student-3",
+          "xp": 40,
+          "level": 2,
+          "gained": 9
+        },
+        {
+          "id": "student-4",
+          "xp": 48,
+          "level": 2,
+          "gained": 15
+        },
+        {
+          "id": "student-5",
+          "xp": 44,
+          "level": 2,
+          "gained": 13
+        },
+        {
+          "id": "student-6",
+          "xp": 48,
+          "level": 2,
+          "gained": 11
+        },
+        {
+          "id": "student-7",
+          "xp": 52,
+          "level": 3,
+          "gained": 15
+        },
+        {
+          "id": "student-8",
+          "xp": 44,
+          "level": 2,
+          "gained": 13
+        },
+        {
+          "id": "student-9",
+          "xp": 52,
+          "level": 3,
+          "gained": 15
+        },
+        {
+          "id": "student-10",
+          "xp": 42,
+          "level": 2,
+          "gained": 11
+        }
+      ]
+    },
+    {
+      "lesson": 5,
+      "students": [
+        {
+          "id": "student-1",
+          "xp": 65,
+          "level": 3,
+          "gained": 15
+        },
+        {
+          "id": "student-2",
+          "xp": 61,
+          "level": 3,
+          "gained": 13
+        },
+        {
+          "id": "student-3",
+          "xp": 51,
+          "level": 3,
+          "gained": 11
+        },
+        {
+          "id": "student-4",
+          "xp": 63,
+          "level": 3,
+          "gained": 15
+        },
+        {
+          "id": "student-5",
+          "xp": 57,
+          "level": 3,
+          "gained": 13
+        },
+        {
+          "id": "student-6",
+          "xp": 59,
+          "level": 3,
+          "gained": 11
+        },
+        {
+          "id": "student-7",
+          "xp": 67,
+          "level": 3,
+          "gained": 15
+        },
+        {
+          "id": "student-8",
+          "xp": 57,
+          "level": 3,
+          "gained": 13
+        },
+        {
+          "id": "student-9",
+          "xp": 67,
+          "level": 3,
+          "gained": 15
+        },
+        {
+          "id": "student-10",
+          "xp": 53,
+          "level": 3,
+          "gained": 11
+        }
+      ]
+    },
+    {
+      "lesson": 6,
+      "students": [
+        {
+          "id": "student-1",
+          "xp": 78,
+          "level": 3,
+          "gained": 13
+        },
+        {
+          "id": "student-2",
+          "xp": 72,
+          "level": 3,
+          "gained": 11
+        },
+        {
+          "id": "student-3",
+          "xp": 64,
+          "level": 3,
+          "gained": 13
+        },
+        {
+          "id": "student-4",
+          "xp": 78,
+          "level": 3,
+          "gained": 15
+        },
+        {
+          "id": "student-5",
+          "xp": 72,
+          "level": 3,
+          "gained": 15
+        },
+        {
+          "id": "student-6",
+          "xp": 72,
+          "level": 3,
+          "gained": 13
+        },
+        {
+          "id": "student-7",
+          "xp": 80,
+          "level": 3,
+          "gained": 13
+        },
+        {
+          "id": "student-8",
+          "xp": 68,
+          "level": 3,
+          "gained": 11
+        },
+        {
+          "id": "student-9",
+          "xp": 78,
+          "level": 3,
+          "gained": 11
+        },
+        {
+          "id": "student-10",
+          "xp": 64,
+          "level": 3,
+          "gained": 11
+        }
+      ]
+    },
+    {
+      "lesson": 7,
+      "students": [
+        {
+          "id": "student-1",
+          "xp": 91,
+          "level": 4,
+          "gained": 13
+        },
+        {
+          "id": "student-2",
+          "xp": 83,
+          "level": 3,
+          "gained": 11
+        },
+        {
+          "id": "student-3",
+          "xp": 75,
+          "level": 3,
+          "gained": 11
+        },
+        {
+          "id": "student-4",
+          "xp": 91,
+          "level": 4,
+          "gained": 13
+        },
+        {
+          "id": "student-5",
+          "xp": 85,
+          "level": 3,
+          "gained": 13
+        },
+        {
+          "id": "student-6",
+          "xp": 83,
+          "level": 3,
+          "gained": 11
+        },
+        {
+          "id": "student-7",
+          "xp": 95,
+          "level": 4,
+          "gained": 15
+        },
+        {
+          "id": "student-8",
+          "xp": 81,
+          "level": 3,
+          "gained": 13
+        },
+        {
+          "id": "student-9",
+          "xp": 89,
+          "level": 3,
+          "gained": 11
+        },
+        {
+          "id": "student-10",
+          "xp": 75,
+          "level": 3,
+          "gained": 11
+        }
+      ]
+    },
+    {
+      "lesson": 8,
+      "students": [
+        {
+          "id": "student-1",
+          "xp": 109,
+          "level": 4,
+          "gained": 18
+        },
+        {
+          "id": "student-2",
+          "xp": 97,
+          "level": 4,
+          "gained": 14
+        },
+        {
+          "id": "student-3",
+          "xp": 84,
+          "level": 3,
+          "gained": 9
+        },
+        {
+          "id": "student-4",
+          "xp": 106,
+          "level": 4,
+          "gained": 15
+        },
+        {
+          "id": "student-5",
+          "xp": 98,
+          "level": 4,
+          "gained": 13
+        },
+        {
+          "id": "student-6",
+          "xp": 98,
+          "level": 4,
+          "gained": 15
+        },
+        {
+          "id": "student-7",
+          "xp": 108,
+          "level": 4,
+          "gained": 13
+        },
+        {
+          "id": "student-8",
+          "xp": 92,
+          "level": 4,
+          "gained": 11
+        },
+        {
+          "id": "student-9",
+          "xp": 102,
+          "level": 4,
+          "gained": 13
+        },
+        {
+          "id": "student-10",
+          "xp": 88,
+          "level": 3,
+          "gained": 13
+        }
+      ]
+    },
+    {
+      "lesson": 9,
+      "students": [
+        {
+          "id": "student-1",
+          "xp": 125,
+          "level": 4,
+          "gained": 16
+        },
+        {
+          "id": "student-2",
+          "xp": 111,
+          "level": 4,
+          "gained": 14
+        },
+        {
+          "id": "student-3",
+          "xp": 99,
+          "level": 4,
+          "gained": 15
+        },
+        {
+          "id": "student-4",
+          "xp": 119,
+          "level": 4,
+          "gained": 13
+        },
+        {
+          "id": "student-5",
+          "xp": 109,
+          "level": 4,
+          "gained": 11
+        },
+        {
+          "id": "student-6",
+          "xp": 113,
+          "level": 4,
+          "gained": 15
+        },
+        {
+          "id": "student-7",
+          "xp": 121,
+          "level": 4,
+          "gained": 13
+        },
+        {
+          "id": "student-8",
+          "xp": 103,
+          "level": 4,
+          "gained": 11
+        },
+        {
+          "id": "student-9",
+          "xp": 113,
+          "level": 4,
+          "gained": 11
+        },
+        {
+          "id": "student-10",
+          "xp": 99,
+          "level": 4,
+          "gained": 11
+        }
+      ]
+    },
+    {
+      "lesson": 10,
+      "students": [
+        {
+          "id": "student-1",
+          "xp": 140,
+          "level": 5,
+          "gained": 15
+        },
+        {
+          "id": "student-2",
+          "xp": 122,
+          "level": 4,
+          "gained": 11
+        },
+        {
+          "id": "student-3",
+          "xp": 106,
+          "level": 4,
+          "gained": 7
+        },
+        {
+          "id": "student-4",
+          "xp": 134,
+          "level": 4,
+          "gained": 15
+        },
+        {
+          "id": "student-5",
+          "xp": 122,
+          "level": 4,
+          "gained": 13
+        },
+        {
+          "id": "student-6",
+          "xp": 122,
+          "level": 4,
+          "gained": 9
+        },
+        {
+          "id": "student-7",
+          "xp": 136,
+          "level": 4,
+          "gained": 15
+        },
+        {
+          "id": "student-8",
+          "xp": 114,
+          "level": 4,
+          "gained": 11
+        },
+        {
+          "id": "student-9",
+          "xp": 124,
+          "level": 4,
+          "gained": 11
+        },
+        {
+          "id": "student-10",
+          "xp": 110,
+          "level": 4,
+          "gained": 11
+        }
+      ]
+    },
+    {
+      "lesson": 11,
+      "students": [
+        {
+          "id": "student-1",
+          "xp": 155,
+          "level": 5,
+          "gained": 15
+        },
+        {
+          "id": "student-2",
+          "xp": 133,
+          "level": 4,
+          "gained": 11
+        },
+        {
+          "id": "student-3",
+          "xp": 117,
+          "level": 4,
+          "gained": 11
+        },
+        {
+          "id": "student-4",
+          "xp": 149,
+          "level": 5,
+          "gained": 15
+        },
+        {
+          "id": "student-5",
+          "xp": 135,
+          "level": 4,
+          "gained": 13
+        },
+        {
+          "id": "student-6",
+          "xp": 133,
+          "level": 4,
+          "gained": 11
+        },
+        {
+          "id": "student-7",
+          "xp": 151,
+          "level": 5,
+          "gained": 15
+        },
+        {
+          "id": "student-8",
+          "xp": 125,
+          "level": 4,
+          "gained": 11
+        },
+        {
+          "id": "student-9",
+          "xp": 135,
+          "level": 4,
+          "gained": 11
+        },
+        {
+          "id": "student-10",
+          "xp": 121,
+          "level": 4,
+          "gained": 11
+        }
+      ]
+    },
+    {
+      "lesson": 12,
+      "students": [
+        {
+          "id": "student-1",
+          "xp": 173,
+          "level": 5,
+          "gained": 18
+        },
+        {
+          "id": "student-2",
+          "xp": 147,
+          "level": 5,
+          "gained": 14
+        },
+        {
+          "id": "student-3",
+          "xp": 130,
+          "level": 4,
+          "gained": 13
+        },
+        {
+          "id": "student-4",
+          "xp": 164,
+          "level": 5,
+          "gained": 15
+        },
+        {
+          "id": "student-5",
+          "xp": 146,
+          "level": 5,
+          "gained": 11
+        },
+        {
+          "id": "student-6",
+          "xp": 146,
+          "level": 5,
+          "gained": 13
+        },
+        {
+          "id": "student-7",
+          "xp": 166,
+          "level": 5,
+          "gained": 15
+        },
+        {
+          "id": "student-8",
+          "xp": 136,
+          "level": 4,
+          "gained": 11
+        },
+        {
+          "id": "student-9",
+          "xp": 146,
+          "level": 5,
+          "gained": 11
+        },
+        {
+          "id": "student-10",
+          "xp": 132,
+          "level": 4,
+          "gained": 11
+        }
+      ]
+    },
+    {
+      "lesson": 13,
+      "students": [
+        {
+          "id": "student-1",
+          "xp": 188,
+          "level": 5,
+          "gained": 15
+        },
+        {
+          "id": "student-2",
+          "xp": 158,
+          "level": 5,
+          "gained": 11
+        },
+        {
+          "id": "student-3",
+          "xp": 143,
+          "level": 5,
+          "gained": 13
+        },
+        {
+          "id": "student-4",
+          "xp": 179,
+          "level": 5,
+          "gained": 15
+        },
+        {
+          "id": "student-5",
+          "xp": 159,
+          "level": 5,
+          "gained": 13
+        },
+        {
+          "id": "student-6",
+          "xp": 161,
+          "level": 5,
+          "gained": 15
+        },
+        {
+          "id": "student-7",
+          "xp": 179,
+          "level": 5,
+          "gained": 13
+        },
+        {
+          "id": "student-8",
+          "xp": 147,
+          "level": 5,
+          "gained": 11
+        },
+        {
+          "id": "student-9",
+          "xp": 157,
+          "level": 5,
+          "gained": 11
+        },
+        {
+          "id": "student-10",
+          "xp": 147,
+          "level": 5,
+          "gained": 15
+        }
+      ]
+    },
+    {
+      "lesson": 14,
+      "students": [
+        {
+          "id": "student-1",
+          "xp": 206,
+          "level": 5,
+          "gained": 18
+        },
+        {
+          "id": "student-2",
+          "xp": 172,
+          "level": 5,
+          "gained": 14
+        },
+        {
+          "id": "student-3",
+          "xp": 154,
+          "level": 5,
+          "gained": 11
+        },
+        {
+          "id": "student-4",
+          "xp": 192,
+          "level": 5,
+          "gained": 13
+        },
+        {
+          "id": "student-5",
+          "xp": 172,
+          "level": 5,
+          "gained": 13
+        },
+        {
+          "id": "student-6",
+          "xp": 172,
+          "level": 5,
+          "gained": 11
+        },
+        {
+          "id": "student-7",
+          "xp": 194,
+          "level": 5,
+          "gained": 15
+        },
+        {
+          "id": "student-8",
+          "xp": 158,
+          "level": 5,
+          "gained": 11
+        },
+        {
+          "id": "student-9",
+          "xp": 168,
+          "level": 5,
+          "gained": 11
+        },
+        {
+          "id": "student-10",
+          "xp": 160,
+          "level": 5,
+          "gained": 13
+        }
+      ]
+    },
+    {
+      "lesson": 15,
+      "students": [
+        {
+          "id": "student-1",
+          "xp": 224,
+          "level": 5,
+          "gained": 18
+        },
+        {
+          "id": "student-2",
+          "xp": 186,
+          "level": 5,
+          "gained": 14
+        },
+        {
+          "id": "student-3",
+          "xp": 167,
+          "level": 5,
+          "gained": 13
+        },
+        {
+          "id": "student-4",
+          "xp": 205,
+          "level": 5,
+          "gained": 13
+        },
+        {
+          "id": "student-5",
+          "xp": 185,
+          "level": 5,
+          "gained": 13
+        },
+        {
+          "id": "student-6",
+          "xp": 183,
+          "level": 5,
+          "gained": 11
+        },
+        {
+          "id": "student-7",
+          "xp": 209,
+          "level": 5,
+          "gained": 15
+        },
+        {
+          "id": "student-8",
+          "xp": 169,
+          "level": 5,
+          "gained": 11
+        },
+        {
+          "id": "student-9",
+          "xp": 181,
+          "level": 5,
+          "gained": 13
+        },
+        {
+          "id": "student-10",
+          "xp": 171,
+          "level": 5,
+          "gained": 11
+        }
+      ]
+    },
+    {
+      "lesson": 16,
+      "students": [
+        {
+          "id": "student-1",
+          "xp": 239,
+          "level": 5,
+          "gained": 15
+        },
+        {
+          "id": "student-2",
+          "xp": 197,
+          "level": 5,
+          "gained": 11
+        },
+        {
+          "id": "student-3",
+          "xp": 178,
+          "level": 5,
+          "gained": 11
+        },
+        {
+          "id": "student-4",
+          "xp": 218,
+          "level": 5,
+          "gained": 13
+        },
+        {
+          "id": "student-5",
+          "xp": 196,
+          "level": 5,
+          "gained": 11
+        },
+        {
+          "id": "student-6",
+          "xp": 194,
+          "level": 5,
+          "gained": 11
+        },
+        {
+          "id": "student-7",
+          "xp": 227,
+          "level": 5,
+          "gained": 18
+        },
+        {
+          "id": "student-8",
+          "xp": 183,
+          "level": 5,
+          "gained": 14
+        },
+        {
+          "id": "student-9",
+          "xp": 192,
+          "level": 5,
+          "gained": 11
+        },
+        {
+          "id": "student-10",
+          "xp": 182,
+          "level": 5,
+          "gained": 11
+        }
+      ]
+    },
+    {
+      "lesson": 17,
+      "students": [
+        {
+          "id": "student-1",
+          "xp": 257,
+          "level": 5,
+          "gained": 18
+        },
+        {
+          "id": "student-2",
+          "xp": 208,
+          "level": 5,
+          "gained": 11
+        },
+        {
+          "id": "student-3",
+          "xp": 191,
+          "level": 5,
+          "gained": 13
+        },
+        {
+          "id": "student-4",
+          "xp": 236,
+          "level": 5,
+          "gained": 18
+        },
+        {
+          "id": "student-5",
+          "xp": 209,
+          "level": 5,
+          "gained": 13
+        },
+        {
+          "id": "student-6",
+          "xp": 205,
+          "level": 5,
+          "gained": 11
+        },
+        {
+          "id": "student-7",
+          "xp": 242,
+          "level": 5,
+          "gained": 15
+        },
+        {
+          "id": "student-8",
+          "xp": 194,
+          "level": 5,
+          "gained": 11
+        },
+        {
+          "id": "student-9",
+          "xp": 203,
+          "level": 5,
+          "gained": 11
+        },
+        {
+          "id": "student-10",
+          "xp": 193,
+          "level": 5,
+          "gained": 11
+        }
+      ]
+    },
+    {
+      "lesson": 18,
+      "students": [
+        {
+          "id": "student-1",
+          "xp": 278,
+          "level": 5,
+          "gained": 21
+        },
+        {
+          "id": "student-2",
+          "xp": 222,
+          "level": 5,
+          "gained": 14
+        },
+        {
+          "id": "student-3",
+          "xp": 202,
+          "level": 5,
+          "gained": 11
+        },
+        {
+          "id": "student-4",
+          "xp": 254,
+          "level": 5,
+          "gained": 18
+        },
+        {
+          "id": "student-5",
+          "xp": 220,
+          "level": 5,
+          "gained": 11
+        },
+        {
+          "id": "student-6",
+          "xp": 218,
+          "level": 5,
+          "gained": 13
+        },
+        {
+          "id": "student-7",
+          "xp": 257,
+          "level": 5,
+          "gained": 15
+        },
+        {
+          "id": "student-8",
+          "xp": 205,
+          "level": 5,
+          "gained": 11
+        },
+        {
+          "id": "student-9",
+          "xp": 214,
+          "level": 5,
+          "gained": 11
+        },
+        {
+          "id": "student-10",
+          "xp": 204,
+          "level": 5,
+          "gained": 11
+        }
+      ]
+    },
+    {
+      "lesson": 19,
+      "students": [
+        {
+          "id": "student-1",
+          "xp": 293,
+          "level": 5,
+          "gained": 15
+        },
+        {
+          "id": "student-2",
+          "xp": 233,
+          "level": 5,
+          "gained": 11
+        },
+        {
+          "id": "student-3",
+          "xp": 215,
+          "level": 5,
+          "gained": 13
+        },
+        {
+          "id": "student-4",
+          "xp": 269,
+          "level": 5,
+          "gained": 15
+        },
+        {
+          "id": "student-5",
+          "xp": 231,
+          "level": 5,
+          "gained": 11
+        },
+        {
+          "id": "student-6",
+          "xp": 227,
+          "level": 5,
+          "gained": 9
+        },
+        {
+          "id": "student-7",
+          "xp": 272,
+          "level": 5,
+          "gained": 15
+        },
+        {
+          "id": "student-8",
+          "xp": 216,
+          "level": 5,
+          "gained": 11
+        },
+        {
+          "id": "student-9",
+          "xp": 225,
+          "level": 5,
+          "gained": 11
+        },
+        {
+          "id": "student-10",
+          "xp": 215,
+          "level": 5,
+          "gained": 11
+        }
+      ]
+    },
+    {
+      "lesson": 20,
+      "students": [
+        {
+          "id": "student-1",
+          "xp": 308,
+          "level": 5,
+          "gained": 15
+        },
+        {
+          "id": "student-2",
+          "xp": 244,
+          "level": 5,
+          "gained": 11
+        },
+        {
+          "id": "student-3",
+          "xp": 226,
+          "level": 5,
+          "gained": 11
+        },
+        {
+          "id": "student-4",
+          "xp": 284,
+          "level": 5,
+          "gained": 15
+        },
+        {
+          "id": "student-5",
+          "xp": 242,
+          "level": 5,
+          "gained": 11
+        },
+        {
+          "id": "student-6",
+          "xp": 238,
+          "level": 5,
+          "gained": 11
+        },
+        {
+          "id": "student-7",
+          "xp": 287,
+          "level": 5,
+          "gained": 15
+        },
+        {
+          "id": "student-8",
+          "xp": 227,
+          "level": 5,
+          "gained": 11
+        },
+        {
+          "id": "student-9",
+          "xp": 236,
+          "level": 5,
+          "gained": 11
+        },
+        {
+          "id": "student-10",
+          "xp": 226,
+          "level": 5,
+          "gained": 11
+        }
+      ]
+    }
+  ],
+  "students": [
+    {
+      "id": "student-1",
+      "name": "Alice",
+      "intelligence": 45,
+      "discipline": 50,
+      "concentration": 100,
+      "morale": 100,
+      "archetypeId": "offensive",
+      "seatId": "seat-1",
+      "personality": {
+        "altruistic": 0.9,
+        "competitive": 0.2,
+        "persistent": 0.6,
+        "impulsive": 0.6,
+        "calm": 0.3,
+        "sociable": 0.1
+      },
+      "progression": {
+        "xp": 308,
+        "level": 5,
+        "unlockedAbilities": [
+          "weaken_lesson",
+          "analyze",
+          "prepare_attack",
+          "combined_attack"
+        ],
+        "usage": {
+          "offense": 35,
+          "concentration": 0,
+          "morale": 0,
+          "pedagogy": 38,
+          "defense": 0,
+          "combo": 8
+        },
+        "specialization": "analyst"
+      }
+    },
+    {
+      "id": "student-2",
+      "name": "Paul",
+      "intelligence": 49,
+      "discipline": 53,
+      "concentration": 100,
+      "morale": 100,
+      "archetypeId": "defensive",
+      "seatId": "seat-2",
+      "personality": {
+        "altruistic": 0,
+        "competitive": 0.8,
+        "persistent": 0.6,
+        "impulsive": 0.6,
+        "calm": 0.6,
+        "sociable": 0.5
+      },
+      "progression": {
+        "xp": 244,
+        "level": 5,
+        "unlockedAbilities": [
+          "protect_neighbor",
+          "intercept",
+          "reassure",
+          "fortify"
+        ],
+        "usage": {
+          "offense": 0,
+          "concentration": 59,
+          "morale": 0,
+          "pedagogy": 0,
+          "defense": 9,
+          "combo": 6
+        },
+        "specialization": "stabilizer"
+      }
+    },
+    {
+      "id": "student-3",
+      "name": "Léa",
+      "intelligence": 53,
+      "discipline": 56,
+      "concentration": 100,
+      "morale": 100,
+      "archetypeId": "support",
+      "seatId": "seat-3",
+      "personality": {
+        "altruistic": 0.9,
+        "competitive": 0.6,
+        "persistent": 0.6,
+        "impulsive": 0.4,
+        "calm": 0.7,
+        "sociable": 0.6
+      },
+      "progression": {
+        "xp": 226,
+        "level": 5,
+        "unlockedAbilities": [
+          "motivate_neighbor",
+          "SUPPORT",
+          "explain_neighbor",
+          "steady_neighbor"
+        ],
+        "usage": {
+          "offense": 0,
+          "concentration": 70,
+          "morale": 4,
+          "pedagogy": 8,
+          "defense": 0,
+          "combo": 0
+        },
+        "specialization": "motivator"
+      }
+    },
+    {
+      "id": "student-4",
+      "name": "Hugo",
+      "intelligence": 57,
+      "discipline": 59,
+      "concentration": 100,
+      "morale": 100,
+      "archetypeId": "offensive",
+      "seatId": "seat-4",
+      "disruptionChance": 0.4,
+      "personality": {
+        "altruistic": 0.3,
+        "competitive": 0.8,
+        "persistent": 1,
+        "impulsive": 0.3,
+        "calm": 0.6,
+        "sociable": 0.7
+      },
+      "progression": {
+        "xp": 284,
+        "level": 5,
+        "unlockedAbilities": [
+          "weaken_lesson",
+          "analyze",
+          "prepare_attack",
+          "combined_attack"
+        ],
+        "usage": {
+          "offense": 42,
+          "concentration": 0,
+          "morale": 0,
+          "pedagogy": 34,
+          "defense": 0,
+          "combo": 2
+        },
+        "specialization": "analyst"
+      }
+    },
+    {
+      "id": "student-5",
+      "name": "Emma",
+      "intelligence": 61,
+      "discipline": 62,
+      "concentration": 100,
+      "morale": 100,
+      "archetypeId": "defensive",
+      "seatId": "seat-5",
+      "personality": {
+        "altruistic": 1,
+        "competitive": 0.7,
+        "persistent": 0.4,
+        "impulsive": 0.4,
+        "calm": 0.8,
+        "sociable": 0.9
+      },
+      "progression": {
+        "xp": 242,
+        "level": 5,
+        "unlockedAbilities": [
+          "protect_neighbor",
+          "intercept",
+          "reassure",
+          "fortify"
+        ],
+        "usage": {
+          "offense": 0,
+          "concentration": 47,
+          "morale": 0,
+          "pedagogy": 0,
+          "defense": 18,
+          "combo": 0
+        },
+        "specialization": "stabilizer"
+      }
+    },
+    {
+      "id": "student-6",
+      "name": "Louis",
+      "intelligence": 65,
+      "discipline": 65,
+      "concentration": 100,
+      "morale": 100,
+      "archetypeId": "support",
+      "seatId": "seat-6",
+      "personality": {
+        "altruistic": 0.4,
+        "competitive": 0.6,
+        "persistent": 0.6,
+        "impulsive": 0.3,
+        "calm": 0.5,
+        "sociable": 0.2
+      },
+      "progression": {
+        "xp": 238,
+        "level": 5,
+        "unlockedAbilities": [
+          "motivate_neighbor",
+          "SUPPORT",
+          "explain_neighbor",
+          "steady_neighbor"
+        ],
+        "usage": {
+          "offense": 0,
+          "concentration": 117,
+          "morale": 14,
+          "pedagogy": 11,
+          "defense": 0,
+          "combo": 0
+        },
+        "specialization": "motivator"
+      }
+    },
+    {
+      "id": "student-7",
+      "name": "Inès",
+      "intelligence": 69,
+      "discipline": 68,
+      "concentration": 100,
+      "morale": 100,
+      "archetypeId": "offensive",
+      "seatId": "seat-7",
+      "personality": {
+        "altruistic": 0.5,
+        "competitive": 0.8,
+        "persistent": 0.4,
+        "impulsive": 0,
+        "calm": 0.5,
+        "sociable": 0.4
+      },
+      "progression": {
+        "xp": 287,
+        "level": 5,
+        "unlockedAbilities": [
+          "weaken_lesson",
+          "analyze",
+          "prepare_attack",
+          "combined_attack"
+        ],
+        "usage": {
+          "offense": 53,
+          "concentration": 0,
+          "morale": 0,
+          "pedagogy": 41,
+          "defense": 0,
+          "combo": 1
+        },
+        "specialization": "analyst"
+      }
+    },
+    {
+      "id": "student-8",
+      "name": "Adam",
+      "intelligence": 73,
+      "discipline": 71,
+      "concentration": 100,
+      "morale": 100,
+      "archetypeId": "defensive",
+      "seatId": "seat-8",
+      "personality": {
+        "altruistic": 0.5,
+        "competitive": 0.6,
+        "persistent": 1,
+        "impulsive": 0.6,
+        "calm": 0.9,
+        "sociable": 0
+      },
+      "progression": {
+        "xp": 227,
+        "level": 5,
+        "unlockedAbilities": [
+          "protect_neighbor",
+          "intercept",
+          "reassure",
+          "fortify"
+        ],
+        "usage": {
+          "offense": 0,
+          "concentration": 64,
+          "morale": 0,
+          "pedagogy": 0,
+          "defense": 6,
+          "combo": 1
+        },
+        "specialization": "stabilizer"
+      }
+    },
+    {
+      "id": "student-9",
+      "name": "Chloé",
+      "intelligence": 77,
+      "discipline": 74,
+      "concentration": 100,
+      "morale": 100,
+      "archetypeId": "support",
+      "seatId": "seat-9",
+      "personality": {
+        "altruistic": 0.7,
+        "competitive": 0.7,
+        "persistent": 0.3,
+        "impulsive": 0.7,
+        "calm": 0.1,
+        "sociable": 0.8
+      },
+      "progression": {
+        "xp": 236,
+        "level": 5,
+        "unlockedAbilities": [
+          "motivate_neighbor",
+          "SUPPORT",
+          "explain_neighbor",
+          "steady_neighbor"
+        ],
+        "usage": {
+          "offense": 0,
+          "concentration": 87,
+          "morale": 13,
+          "pedagogy": 3,
+          "defense": 0,
+          "combo": 0
+        },
+        "specialization": "motivator"
+      }
+    },
+    {
+      "id": "student-10",
+      "name": "Noé",
+      "intelligence": 53,
+      "discipline": 56,
+      "concentration": 100,
+      "morale": 100,
+      "archetypeId": "support",
+      "seatId": "seat-10",
+      "personality": {
+        "altruistic": 0.9,
+        "competitive": 0.6,
+        "persistent": 0.6,
+        "impulsive": 0.4,
+        "calm": 0.7,
+        "sociable": 0.6
+      },
+      "progression": {
+        "xp": 226,
+        "level": 5,
+        "unlockedAbilities": [
+          "motivate_neighbor",
+          "SUPPORT",
+          "explain_neighbor",
+          "steady_neighbor"
+        ],
+        "usage": {
+          "offense": 0,
+          "concentration": 60,
+          "morale": 3,
+          "pedagogy": 4,
+          "defense": 0,
+          "combo": 0
+        },
+        "specialization": "motivator"
+      }
+    }
+  ],
+  "relations": {
+    "links": [
+      {
+        "from": "student-1",
+        "to": "student-2",
+        "score": 100
+      },
+      {
+        "from": "student-1",
+        "to": "student-3",
+        "score": -15
+      },
+      {
+        "from": "student-1",
+        "to": "student-4",
+        "score": 90.23
+      },
+      {
+        "from": "student-1",
+        "to": "student-5",
+        "score": 27
+      },
+      {
+        "from": "student-1",
+        "to": "student-6",
+        "score": -6
+      },
+      {
+        "from": "student-1",
+        "to": "student-7",
+        "score": 54
+      },
+      {
+        "from": "student-1",
+        "to": "student-8",
+        "score": 10
+      },
+      {
+        "from": "student-1",
+        "to": "student-9",
+        "score": 17
+      },
+      {
+        "from": "student-2",
+        "to": "student-1",
+        "score": 100
+      },
+      {
+        "from": "student-2",
+        "to": "student-3",
+        "score": 100
+      },
+      {
+        "from": "student-2",
+        "to": "student-4",
+        "score": 29
+      },
+      {
+        "from": "student-2",
+        "to": "student-5",
+        "score": 100
+      },
+      {
+        "from": "student-2",
+        "to": "student-6",
+        "score": -14
+      },
+      {
+        "from": "student-2",
+        "to": "student-7",
+        "score": 21
+      },
+      {
+        "from": "student-2",
+        "to": "student-8",
+        "score": 14
+      },
+      {
+        "from": "student-2",
+        "to": "student-9",
+        "score": 8
+      },
+      {
+        "from": "student-3",
+        "to": "student-1",
+        "score": 11
+      },
+      {
+        "from": "student-3",
+        "to": "student-2",
+        "score": 73.17
+      },
+      {
+        "from": "student-3",
+        "to": "student-4",
+        "score": 46
+      },
+      {
+        "from": "student-3",
+        "to": "student-5",
+        "score": -3
+      },
+      {
+        "from": "student-3",
+        "to": "student-6",
+        "score": 100
+      },
+      {
+        "from": "student-3",
+        "to": "student-7",
+        "score": 46
+      },
+      {
+        "from": "student-3",
+        "to": "student-8",
+        "score": 45
+      },
+      {
+        "from": "student-3",
+        "to": "student-9",
+        "score": 16
+      },
+      {
+        "from": "student-4",
+        "to": "student-1",
+        "score": 100
+      },
+      {
+        "from": "student-4",
+        "to": "student-2",
+        "score": 8
+      },
+      {
+        "from": "student-4",
+        "to": "student-3",
+        "score": -15
+      },
+      {
+        "from": "student-4",
+        "to": "student-5",
+        "score": 100
+      },
+      {
+        "from": "student-4",
+        "to": "student-6",
+        "score": -4
+      },
+      {
+        "from": "student-4",
+        "to": "student-7",
+        "score": 94.98
+      },
+      {
+        "from": "student-4",
+        "to": "student-8",
+        "score": 4
+      },
+      {
+        "from": "student-4",
+        "to": "student-9",
+        "score": 3
+      },
+      {
+        "from": "student-5",
+        "to": "student-1",
+        "score": 17
+      },
+      {
+        "from": "student-5",
+        "to": "student-2",
+        "score": 75.41
+      },
+      {
+        "from": "student-5",
+        "to": "student-3",
+        "score": -1
+      },
+      {
+        "from": "student-5",
+        "to": "student-4",
+        "score": 100
+      },
+      {
+        "from": "student-5",
+        "to": "student-6",
+        "score": 100
+      },
+      {
+        "from": "student-5",
+        "to": "student-7",
+        "score": -13
+      },
+      {
+        "from": "student-5",
+        "to": "student-8",
+        "score": -27.42
+      },
+      {
+        "from": "student-5",
+        "to": "student-9",
+        "score": 51
+      },
+      {
+        "from": "student-6",
+        "to": "student-1",
+        "score": -13
+      },
+      {
+        "from": "student-6",
+        "to": "student-2",
+        "score": 21
+      },
+      {
+        "from": "student-6",
+        "to": "student-3",
+        "score": 100
+      },
+      {
+        "from": "student-6",
+        "to": "student-4",
+        "score": 12
+      },
+      {
+        "from": "student-6",
+        "to": "student-5",
+        "score": 80.53
+      },
+      {
+        "from": "student-6",
+        "to": "student-7",
+        "score": 5
+      },
+      {
+        "from": "student-6",
+        "to": "student-8",
+        "score": 36
+      },
+      {
+        "from": "student-6",
+        "to": "student-9",
+        "score": 100
+      },
+      {
+        "from": "student-7",
+        "to": "student-1",
+        "score": 25
+      },
+      {
+        "from": "student-7",
+        "to": "student-2",
+        "score": -13
+      },
+      {
+        "from": "student-7",
+        "to": "student-3",
+        "score": 15
+      },
+      {
+        "from": "student-7",
+        "to": "student-4",
+        "score": 85.6
+      },
+      {
+        "from": "student-7",
+        "to": "student-5",
+        "score": 29
+      },
+      {
+        "from": "student-7",
+        "to": "student-6",
+        "score": 23
+      },
+      {
+        "from": "student-7",
+        "to": "student-8",
+        "score": 100
+      },
+      {
+        "from": "student-7",
+        "to": "student-9",
+        "score": 40
+      },
+      {
+        "from": "student-8",
+        "to": "student-1",
+        "score": 55
+      },
+      {
+        "from": "student-8",
+        "to": "student-2",
+        "score": 55
+      },
+      {
+        "from": "student-8",
+        "to": "student-3",
+        "score": 26
+      },
+      {
+        "from": "student-8",
+        "to": "student-4",
+        "score": 54
+      },
+      {
+        "from": "student-8",
+        "to": "student-5",
+        "score": -31.76
+      },
+      {
+        "from": "student-8",
+        "to": "student-6",
+        "score": 27
+      },
+      {
+        "from": "student-8",
+        "to": "student-7",
+        "score": 100
+      },
+      {
+        "from": "student-8",
+        "to": "student-9",
+        "score": 100
+      },
+      {
+        "from": "student-9",
+        "to": "student-1",
+        "score": 34
+      },
+      {
+        "from": "student-9",
+        "to": "student-2",
+        "score": -8
+      },
+      {
+        "from": "student-9",
+        "to": "student-3",
+        "score": 17
+      },
+      {
+        "from": "student-9",
+        "to": "student-4",
+        "score": 44
+      },
+      {
+        "from": "student-9",
+        "to": "student-5",
+        "score": 32
+      },
+      {
+        "from": "student-9",
+        "to": "student-6",
+        "score": 100
+      },
+      {
+        "from": "student-9",
+        "to": "student-7",
+        "score": 52
+      },
+      {
+        "from": "student-9",
+        "to": "student-8",
+        "score": 100
+      },
+      {
+        "from": "student-10",
+        "to": "student-7",
+        "score": 100
+      },
+      {
+        "from": "student-7",
+        "to": "student-10",
+        "score": 100
+      }
+    ]
+  },
+  "used": {
+    "motivate_neighbor": 34,
+    "SUPPORT": 252,
+    "explain_neighbor": 26,
+    "steady_neighbor": 82,
+    "weaken_lesson": 118,
+    "analyze": 113,
+    "prepare_attack": 12,
+    "combined_attack": 9,
+    "protect_neighbor": 33,
+    "intercept": 113,
+    "reassure": 0,
+    "fortify": 57
+  },
+  "unusedAbilities": [
+    "reassure"
+  ],
+  "archetypes": [
+    {
+      "id": "offensive",
+      "meanXp": 293,
+      "levels": [
+        5,
+        5,
+        5
+      ]
+    },
+    {
+      "id": "defensive",
+      "meanXp": 237.66666666666666,
+      "levels": [
+        5,
+        5,
+        5
+      ]
+    },
+    {
+      "id": "support",
+      "meanXp": 231.5,
+      "levels": [
+        5,
+        5,
+        5,
+        5
+      ]
+    }
+  ]
+}

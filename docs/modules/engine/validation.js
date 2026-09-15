@@ -64,6 +64,9 @@ export function validateScenario(scenario) {
         }
         if (student.present !== undefined && typeof student.present !== 'boolean')
             errors.push('Présence invalide.');
+        if (student.lessonMastery)
+            for (const value of Object.values(student.lessonMastery))
+                checkStat(value, 'Maîtrise de leçon');
         if (student.knowledge)
             for (const value of Object.values(student.knowledge))
                 checkStat(value, 'Connaissance');
@@ -99,13 +102,15 @@ export function validateScenario(scenario) {
     }
     if (new Set(lesson.conceptIds).size !== lesson.conceptIds.length)
         errors.push('Leçon : référence de concept dupliquée.');
-    uniqueIds(lesson.chapters, 'Chapitre');
-    if (lesson.chapters.length === 0)
-        errors.push('Leçon : au moins un chapitre requis.');
-    for (const chapter of lesson.chapters) {
-        if (!Number.isInteger(chapter.roundCount) || chapter.roundCount < 1) {
-            errors.push(`Chapitre ${chapter.id} : nombre de rounds entier positif requis.`);
-        }
+    if (scenario.program && scenario.subject.programId !== scenario.program.id)
+        errors.push('Matière : programme inconnu.');
+    const poolIds = new Set();
+    for (const entry of lesson.conceptPool ?? []) {
+        if (!conceptIds.has(entry.conceptId) || poolIds.has(entry.conceptId) || !Number.isFinite(entry.baseRate) || entry.baseRate < 0 || entry.baseRate > 1)
+            errors.push('Pool de Concepts invalide.');
+        poolIds.add(entry.conceptId);
     }
+    if (!Number.isSafeInteger(lesson.roundCount) || lesson.roundCount < 1)
+        errors.push('Leçon : nombre de rounds entier positif requis.');
     return errors;
 }

@@ -1,3 +1,5 @@
+import { curriculum } from './curriculum.js';
+import { conceptCatalog } from './concepts.js';
 import { createLearningRules } from './learningRules.js';
 import { createInteractionRules } from './interactionRules.js';
 // Une nouvelle instance à chaque appel évite de partager un état mutable entre tests.
@@ -50,22 +52,10 @@ export function createPrototype() {
             { id: 'defensive', name: 'Défensif', reactionIds: ['protect_neighbor'] },
             { id: 'support', name: 'Support', reactionIds: ['explain_neighbor'] },
         ],
-        subject: { id: 'mathematics', name: 'Mathématiques' },
-        topic: { id: 'fractions', subjectId: 'mathematics', name: 'Fractions' },
-        lesson: {
-            complexity: 50, pressure: 70, requiredProgress: 100,
-            id: 'introduction-to-fractions', topicId: 'fractions',
-            name: 'Introduction aux fractions',
-            chapters: [
-                { id: 'discover', name: 'Découvrir', roundCount: 3 },
-                { id: 'understand', name: 'Comprendre', roundCount: 3 },
-            ],
-            conceptIds: ['fraction', 'numerator', 'denominator'],
-        },
-        concepts: [
-            { id: 'fraction', name: 'Fraction' },
-            { id: 'numerator', name: 'Numérateur' },
-            { id: 'denominator', name: 'Dénominateur' },
-        ],
+        program: structuredClone(curriculum.programs[0]),
+        subject: structuredClone(curriculum.subjects[0]),
+        topic: structuredClone(curriculum.chapters[0]),
+        lesson: structuredClone(curriculum.lessons[0]),
+        concepts: structuredClone(conceptCatalog),
     };
 }

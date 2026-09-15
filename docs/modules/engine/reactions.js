@@ -1,7 +1,7 @@
 import { behaviorCandidate, weightedChoice, getRelation, relationThreshold, validateSocial } from './social.js';
 import { validateLearningRules } from '../data/learningRules.js';
 import { validateInteractionRules } from '../data/interactionRules.js';
-import { chapterMastery, checkMorale, masteryAccess } from './interactions.js';
+import { lessonMastery, checkMorale, masteryAccess } from './interactions.js';
 import { moraleMultiplier, roundValue } from './combat.js';
 import { applyTemporaryEffect, effectiveStats } from './effects.js';
 import { AbilityUsage, effectiveAbility } from './abilities.js';
@@ -118,8 +118,8 @@ export function resolveReactionWindow(context) {
             .map(ability => effectiveAbility(student, ability))
             .sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
         const checks = interactionRules && available.length ? checkMorale(student.id, effectiveStats(student, state).morale, context.behavior.random, interactionRules, events, window, target.id) : undefined;
-        const mastery = interactionRules ? chapterMastery(state, lesson, context.behavior.chapterId) : 100;
-        const targetMastery = interactionRules ? chapterMastery(targetState, lesson, context.behavior.chapterId) : 100;
+        const mastery = interactionRules ? lessonMastery(state) : 100;
+        const targetMastery = interactionRules ? lessonMastery(targetState) : 100;
         for (const ability of available) {
             const unavailable = (setup.abilityUsage ?? new AbilityUsage()).reason(student, ability.id);
             if (unavailable) {
