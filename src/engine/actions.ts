@@ -6,7 +6,7 @@ import type { ActionEvent, ActionKind, ActionLimitReason, ConcentrationReason, R
 import type { ActionRules } from '../data/rules.js';
 import { statBounds } from '../data/rules.js';
 import { SeededRandom } from './random.js';
-import { chapterCapacity, roundValue } from './combat.js';
+import { roundValue } from './combat.js';
 
 import { resolveWorkTurn, type AttackModifiers } from './turn.js';
 import { effectBonus, effectiveStats, endRoundEffects, validateEffects } from './effects.js';
@@ -106,10 +106,10 @@ export function validateActionRules(rules: ActionRules, studentCount: number): v
   if (rules.maxActionsPerRound < studentCount) throw new Error('Le budget doit permettre toutes les actions principales.');
 }
 
-// Les états sont copiés en profondeur : les acquis des chapitres passés sont conservés.
+// Les etats sont copies en profondeur : la progression de la lecon est conservee.
 export function resolveActionRound(
   students: readonly Student[], initialStates: readonly StudentLessonState[],
-  random: SeededRandom, rules: ActionRules, lesson: Lesson, chapterId: string,
+  random: SeededRandom, rules: ActionRules, lesson: Lesson,
   reactionSetup?: ReactionSetup,
   teacherContext?: TeacherRoundContext,
 ): ActionRoundResult {
@@ -123,7 +123,6 @@ export function resolveActionRound(
     const errors = validateReactionSetup(students, reactionSetup);
     if (errors.length) throw new Error(errors.join('\n'));
   }
-  if (!lesson.chapters.some(chapter => chapter.id === chapterId)) throw new Error('Chapitre inconnu.');
   if (!Number.isFinite(lesson.requiredProgress) || lesson.requiredProgress <= 0 ||
       !Number.isFinite(lesson.complexity) || lesson.complexity < 0 || lesson.complexity > 100 ||
       !Number.isFinite(lesson.pressure) || lesson.pressure < 0 || lesson.pressure > 100) throw new Error('Leçon invalide.');
@@ -133,7 +132,6 @@ export function resolveActionRound(
   if (byId.size !== students.length || states.size !== initialStates.length || states.size !== byId.size) {
     throw new Error('Les élèves et leurs états doivent correspondre sans doublons.');
   }
-  const capacity = chapterCapacity(lesson);
   for (const student of students) {
     const state = states.get(student.id);
     if (!state) throw new Error('État de séance invalide.');
@@ -141,13 +139,10 @@ export function resolveActionRound(
     for (const value of [state.lessonUnderstanding, state.concentration, state.morale, student.intelligence, student.discipline]) {
       if (!Number.isFinite(value) || value < statBounds.min || value > statBounds.max) throw new Error('Statistique invalide.');
     }
-    if (state.chapters.length !== lesson.chapters.length ||
-        new Set(state.chapters.map(c => c.chapterId)).size !== state.chapters.length ||
-        state.chapters.some(c => !lesson.chapters.some(d => d.id === c.chapterId) ||
-          !Number.isFinite(c.progress) || c.progress < 0 || c.progress > capacity ||
-          !Number.isSafeInteger(c.missedRounds) || c.missedRounds < 0)) throw new Error('Progression de chapitre invalide.');
-    const understanding = roundValue(100 * state.chapters.reduce((sum, c) => sum + c.progress, 0) / lesson.requiredProgress);
-    if (understanding !== state.lessonUnderstanding) throw new Error('Compréhension incohérente avec les chapitres.');
+    if (!Number.isFinite(state.progress) || state.progress < 0 || state.progress > lesson.requiredProgress ||
+        !Number.isSafeInteger(state.missedRounds) || state.missedRounds < 0) throw new Error('Progression de leçon invalide.');
+    const understanding = roundValue(100 * state.progress / lesson.requiredProgress);
+    if (understanding !== state.lessonUnderstanding) throw new Error('Compréhension incohérente avec la progression.');
     if (!Object.hasOwn(rules.supportChanceByArchetype, student.archetypeId)) throw new Error('Règle d’archétype manquante.');
   }
 
@@ -211,7 +206,6 @@ export function resolveActionRound(
     socialConsequences();
     const student = byId.get(action.actorId)!;
     const state = states.get(student.id)!;
-    const chapter = state.chapters.find(c => c.chapterId === chapterId)!;
     if (action.depth > 0 && (state.concentration === 0 || resting.has(student.id))) continue;
     const checks = interactionRules && action.depth === 0 ? checkMorale(student.id, effectiveStats(student, state).morale,
       random, interactionRules, events, 'MAIN_ACTION', student.id) : undefined;
@@ -240,9 +234,9 @@ export function resolveActionRound(
     }
     if (state.concentration === 0) {
       resting.add(student.id);
-      chapter.missedRounds++;
+      state.missedRounds++;
       events.push({ type: 'STUDENT_ACTION', actorId: student.id, actionId: 'RECOVER', targetId: student.id, extra: false });
-      events.push({ type: 'CHAPTER_PROGRESS_CHANGED', studentId: student.id, ...chapter });
+      events.push({ type: 'LESSON_PROGRESS_CHANGED', studentId: student.id, progress: state.progress, missedRounds: state.missedRounds });
       changeConcentration(state, rules.recovery, 'recovery');
       continue;
     }
@@ -254,10 +248,10 @@ export function resolveActionRound(
       const understandingBefore = state.lessonUnderstanding;
       const resolvedEffects = new Set<string>();
       const modifiers: AttackModifiers = {};
-      const turn = resolveWorkTurn({ social: !!social, learningRules: reactionSetup?.learningRules, student, state, lesson: effectiveLesson, chapterId, rules: turnRules, random, events, changeConcentration, modifiers });
+      const turn = resolveWorkTurn({ social: !!social, learningRules: reactionSetup?.learningRules, student, state, lesson: effectiveLesson, rules: turnRules, random, events, changeConcentration, modifiers });
       for (const window of turn) {
         events.push({ type: 'REACTION_WINDOW_OPENED', studentId: student.id, window, extra: action.depth > 0 });
-        if (reactionSetup) resolveReactionWindow({ behavior: { chapterId, random }, window, target: student, students, states,
+        if (reactionSetup) resolveReactionWindow({ behavior: { random }, window, target: student, students, states,
           resting, setup: reactionSetup, lesson: effectiveLesson, rules, queue, depth: action.depth + 1, events, resolvedEffects,
           attackSucceeded: state.lessonUnderstanding > understandingBefore, modifiers });
       }

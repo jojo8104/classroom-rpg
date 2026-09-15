@@ -17,10 +17,10 @@ function reactionScenario(relation: number, mastery: number, effect: 'COMBINED_A
   s.reactionAbilities = effect === 'COMBINED_ATTACK' ? [{ id: 'test', effect, window: 'BEFORE_STUDENT_ATTACK', minRelation: 90, synergy: 0.25 }] : [{ id: 'test', effect, window: 'DURING_LESSON_ATTACK', minRelation: 40, reduction: 0.6, maxReduction: 0.8 }];
   s.archetypes.forEach(a => a.reactionIds = []);
   const states = createLessonStates(s.students, s.lesson);
-  states.forEach(state => { state.chapters[0]!.progress = mastery / 100 * 50; state.lessonUnderstanding = mastery / 2; });
+  states.forEach(state => { state.progress = mastery; state.lessonUnderstanding = mastery; });
   const rules = createActionRules(); rules.criticalChance = 0; rules.workScale = 0.01;
   for (const key of Object.keys(rules.supportChanceByArchetype)) rules.supportChanceByArchetype[key] = 0;
-  return resolveActionRound(s.students, states, new SeededRandom(6), rules, s.lesson, s.lesson.chapters[0]!.id,
+  return resolveActionRound(s.students, states, new SeededRandom(6), rules, s.lesson,
     { classRelations: s.classRelations, relations: [], classroom: s.classroom, archetypes: s.archetypes, abilities: s.reactionAbilities, interactionRules: createInteractionRules(), learningRules: s.learningRules });
 }
 describe('Roadmap 3 intégrée', () => {

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createPrototype } from '../src/data/prototype.js';
 import { createActionRules } from '../src/data/rules.js';
 import { createInteractionRules } from '../src/data/interactionRules.js';
-import { chapterMastery, checkMorale, moraleChances } from '../src/engine/interactions.js';
+import { lessonMastery, checkMorale, moraleChances } from '../src/engine/interactions.js';
 import { createLessonStates, moraleMultiplier } from '../src/engine/combat.js';
 import { resolveReactionWindow } from '../src/engine/reactions.js';
 import { ActionQueue } from '../src/engine/actions.js';
@@ -24,8 +24,8 @@ function reaction(ability = explain, mastery = 0, targetMastery = 0, morale = 10
   s.students[0]!.reactionIds = []; s.students[1]!.reactionIds = [ability.id, ...additional.map(a => a.id)];
   s.students[1]!.morale = morale;
   const states = createLessonStates(s.students, s.lesson);
-  states[0]!.chapters[0]!.progress = targetMastery / 2; states[0]!.lessonUnderstanding = targetMastery / 2;
-  states[1]!.chapters[0]!.progress = mastery / 2; states[1]!.lessonUnderstanding = mastery / 2;
+  states[0]!.progress = targetMastery; states[0]!.lessonUnderstanding = targetMastery;
+  states[1]!.progress = mastery; states[1]!.lessonUnderstanding = mastery;
   const events: ActionEvent[] = []; const modifiers: AttackModifiers = {};
   const random = new SeededRandom(1); let index = 0;
   vi.spyOn(random, 'next').mockImplementation(() => draws[index++ % draws.length]!);
@@ -35,7 +35,7 @@ function reaction(ability = explain, mastery = 0, targetMastery = 0, morale = 10
     setup: { classroom: s.classroom, archetypes: s.archetypes, abilities: [ability, ...additional],
       relations: [{ studentIds: ['student-1', 'student-2'], value: relation }], interactionRules: createInteractionRules() },
     lesson, rules, queue: new ActionQueue(rules), depth: 1, events, resolvedEffects: new Set(),
-    attackSucceeded: true, modifiers, behavior: { chapterId: s.lesson.chapters[0]!.id, random } });
+    attackSucceeded: true, modifiers, behavior: { random } });
   return { events, states, modifiers, lesson };
 }
 describe('Maîtrise et moral — point 35 ter', () => {
@@ -90,7 +90,7 @@ describe('Maîtrise et moral — point 35 ter', () => {
     const s = createPrototype(); const rules = createActionRules(); rules.workScale = 0.1;
     const events: ActionEvent[] = [];
     const turn = resolveWorkTurn({ student: s.students[0]!, state: result.states[0]!, lesson: s.lesson,
-      chapterId: s.lesson.chapters[0]!.id, rules, random: new SeededRandom(1), events,
+      rules, random: new SeededRandom(1), events,
       changeConcentration: () => {}, modifiers: result.modifiers });
     for (const _window of turn) { /* Résolution sans réactions supplémentaires. */ }
     const resolved = events.find(e => e.type === 'COMBINED_ATTACK_RESOLVED');
@@ -98,11 +98,10 @@ describe('Maîtrise et moral — point 35 ter', () => {
     expect(resolved.potentialGain).toBeGreaterThan(resolved.activeGain + resolved.partnerGain);
     expect(resolved.synergyGain).toBeGreaterThan(0);
   });
-  it('utilise les acquis locaux et non ceux du chapitre précédent', () => {
+  it('utilise la comprehension continue de la lecon', () => {
     const s = createPrototype(); const state = createLessonStates(s.students, s.lesson)[0]!;
-    state.chapters[0]!.progress = 50; state.lessonUnderstanding = 50;
-    expect(chapterMastery(state, s.lesson, s.lesson.chapters[0]!.id)).toBe(100);
-    expect(chapterMastery(state, s.lesson, s.lesson.chapters[1]!.id)).toBe(0);
+    state.progress = 50; state.lessonUnderstanding = 50;
+    expect(lessonMastery(state)).toBe(50);
   });
   it('permet une exigence propre à une capacité et la valide', () => {
     expect(reaction({ ...explain, mastery: { minimum: 70, scalesPower: true } }, 60).states[0]!.effects).toHaveLength(0);

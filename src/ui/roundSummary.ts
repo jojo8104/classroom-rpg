@@ -1,17 +1,16 @@
 import type { Lesson, StudentLessonState } from '../domain.js';
 import type { GameEventPayload } from '../events.js';
-import { chapterCapacity, roundValue } from '../engine/combat.js';
+import { roundValue } from '../engine/combat.js';
 
 // Seuils de lecture du bilan ; ils ne changent aucune règle de simulation.
 export const summaryThresholds = { lowMorale: 40, largeLoss: 25, lowConcentration: 25, lowProgress: 5 };
 export function summarizeRound(before: readonly StudentLessonState[], after: readonly StudentLessonState[],
-  events: readonly GameEventPayload[], lesson: Lesson, chapterId: string) {
+  events: readonly GameEventPayload[], lesson: Lesson) {
   return after.map(state => {
     const previous = before.find(s => s.studentId === state.studentId)!;
     const progress = roundValue(state.lessonUnderstanding - previous.lessonUnderstanding);
     const concentration = roundValue(state.concentration - previous.concentration);
-    const chapter = state.chapters.find(c => c.chapterId === chapterId)!;
-    const completed = chapter.progress >= chapterCapacity(lesson);
+    const completed = state.progress >= lesson.requiredProgress;
     const alerts: string[] = [];
     if (state.concentration === 0) alerts.push('Décroché');
     else if (state.concentration <= summaryThresholds.lowConcentration) alerts.push('Concentration faible');

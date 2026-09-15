@@ -3,7 +3,7 @@ import type { RelationIndex } from '../systems/RelationIndex.js';
 import { behaviorCandidate, weightedChoice, getRelation, relationThreshold, validateSocial } from './social.js';
 import { validateLearningRules, type LearningRules } from '../data/learningRules.js';
 import { validateInteractionRules, type InteractionRules } from '../data/interactionRules.js';
-import { chapterMastery, checkMorale, masteryAccess } from './interactions.js';
+import { lessonMastery, checkMorale, masteryAccess } from './interactions.js';
 import type { SeededRandom } from './random.js';
 import type { Classroom, Lesson, ReactionAbility, Student, StudentArchetype, StudentLessonState, StudentRelation } from '../domain.js';
 import type { ActionRules } from '../data/rules.js';
@@ -96,7 +96,7 @@ export function relationBetween(left: string, right: string, relations: readonly
 }
 
 interface ReactionContext {
-  behavior?: { chapterId: string; random: SeededRandom };
+  behavior?: { random: SeededRandom };
   window: ReactionWindow;
   target: Student;
   students: readonly Student[];
@@ -141,8 +141,8 @@ export function resolveReactionWindow(context: ReactionContext): void {
       .sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
     const checks = interactionRules && available.length ? checkMorale(student.id, effectiveStats(student, state).morale,
       context.behavior!.random, interactionRules, events, window, target.id) : undefined;
-    const mastery = interactionRules ? chapterMastery(state, lesson, context.behavior!.chapterId) : 100;
-    const targetMastery = interactionRules ? chapterMastery(targetState, lesson, context.behavior!.chapterId) : 100;
+    const mastery = interactionRules ? lessonMastery(state) : 100;
+    const targetMastery = interactionRules ? lessonMastery(targetState) : 100;
     for (const ability of available) {
       const unavailable = (setup.abilityUsage ?? new AbilityUsage()).reason(student, ability.id);
       if (unavailable) {

@@ -4,7 +4,7 @@
 
 L’école des royaumes conserve un enseignement général primaire. Les fractions sont abordées à travers le partage des provisions de voyage. Les rôles Offensif, Défensif et Soutien et tous les systèmes existants sont conservés. Aucune orientation ou profession supplémentaire n’est implémentée.
 
-La structure minimale réutilise les modèles existants : `Program → Subject.programId → Topic.subjectId → Lesson.topicId → Lesson.conceptPool`. `Topic` représente le chapitre scolaire ; `Lesson.chapters` conserve les phases de séance historiques. La compréhension individuelle reste de 0 à 100 %. Aucun éditeur ou programme complet n’est ajouté.
+La structure minimale réutilise les modèles existants : `Program → Subject.programId → Topic.subjectId → Lesson.topicId → Lesson.conceptPool`. `Topic` représente le chapitre scolaire. La leçon ne contient aucun sous-chapitre : `Lesson.roundCount` fixe sa durée (6 rounds dans le prototype), avec une progression continue. Les anciens plafonds intermédiaires sont supprimés ; les retards peuvent être rattrapés pendant la leçon. La compréhension individuelle reste de 0 à 100 %. Aucun éditeur ou programme complet n’est ajouté.
 
 ## Concepts
 
@@ -21,3 +21,7 @@ La structure minimale réutilise les modèles existants : `Program → Subject.p
 ## Validation ciblée
 
 Cinq tests Concepts couvrent acquisition, progression partielle et partage entre leçons, exclusion des doublons, tags et bonus XP, branchement au bilan, sauvegarde et migration. Les tests existants de progression, simulation, placement, classe complète, validation, rendu et bilan ont été exécutés ; seul le placement a nécessité une correction sur la préservation des absents, puis une relance ciblée.
+
+## Suppression des phases internes
+
+La progression et les rounds manqués sont maintenant stockés directement dans les états et résultats de leçon. Les réactions utilisent la compréhension globale. Les événements internes de chapitre sont remplacés par `LESSON_PROGRESS_CHANGED`. Les sauvegardes persistantes ne stockaient pas ces phases et restent compatibles. Validation globale unique : 285 tests réussis.

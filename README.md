@@ -30,18 +30,18 @@ npm run dev
 ```
 
 L'aperçu local est sur http://127.0.0.1:4173. Un pupitre affiche la compréhension et
-les HP ; sa fiche détaille le moral et les acquis par chapitre. Recommencer rejoue
+les HP ; sa fiche détaille le moral et la progression de la leçon. Recommencer rejoue
 le scénario initial, sans conserver le moral de la séance précédente.
 
 ## Combat et décrochage
 
 - Leçon : complexité 50, pression 70 et progression requise 100 dans le prototype.
-- Chaque chapitre réserve une part égale de la progression (50 points chacun).
+- `Lesson.roundCount` fixe la durée (6 rounds). La progression est continue jusqu’à 100 %.
 - Moral : multiplicateur = 0,1 + 1,8 × moral / 100.
 - Attaque = intelligence × multiplicateur ; défense = discipline × multiplicateur.
 - Gain = 0,65 × attaque × 50 / (50 + complexité) × variation entre 0,9 et 1,1.
 - Dégâts = 0,65 × pression × 50 / (50 + défense).
-- Critique : 10 %, gain ×1,5 et aucune riposte. Compléter le chapitre évite aussi sa riposte.
+- Critique : 10 %, gain ×1,5 et aucune riposte. Compléter la leçon évite aussi sa riposte.
 - Statistiques sur 0–100 et calculs arrondis à deux décimales.
 
 La concentration est uniquement une réserve de HP : à 1 HP on peut apprendre,
@@ -52,16 +52,15 @@ round et reprend au suivant. SUPPORT restaure 10 HP (maximum 100), remplaçant
 l'ancien bonus temporaire ; il peut réveiller un élève avant son action principale
 et créer un WORK supplémentaire.
 
-La compréhension globale vient de la somme des progressions par chapitre.
-Un chapitre suivant ne comble pas les lacunes du précédent. Les acquis ne sont
-jamais retirés. Le compteur d'étapes manquées est informatif, sans deuxième pénalité.
-Les concepts restent référencés, sans validation individuelle.
+La compréhension vaut `100 × progress / requiredProgress`. Le retard peut être
+rattrapé jusqu’à la fin de la leçon. Les acquis ne sont jamais retirés. Le compteur d'étapes manquées est informatif, sans deuxième pénalité.
+Les Concepts découverts et leur progression partielle sont persistants (voir roadmap5.md).
 
 SimulationResult.nextLessonStudents prépare une nouvelle séance : 100 HP et moral
 final conservé. L'appelant transmet ces élèves au prochain scénario. Les résultats
-par chapitre restent dans l'historique retourné. Un nouveau scénario initialise une
+de leçon restent dans l'historique retourné. Un nouveau scénario initialise une
 nouvelle progression ; le rattrapage lors d'une séance ultérieure reste à concevoir.
-Il n'y a ni sauvegarde disque ni campagne automatique.
+La sauvegarde locale conserve les profils des élèves, leurs Concepts et leur placement.
 
 ## Architecture
 
@@ -110,7 +109,7 @@ de chaque statistique s'applique, sans addition des sources. Un même effet reç
 La durée de deux rounds inclut le round d'application. La décrémentation intervient
 une seule fois en fin de round, après toutes les actions bonus ; un effet appliqué
 entre deux rounds couvre donc entièrement le prochain round. Les effets survivent
-aux changements de chapitre de la même séance mais ne passent pas dans une nouvelle
+aux rounds de la même séance selon leur durée mais ne passent pas dans une nouvelle
 leçon. Application, renouvellement, décrémentation et expiration sont journalisés.
 Le soutien après progression n'augmente pas rétroactivement le gain ; son bonus
 de moral influence la riposte puis les attaques suivantes tant qu'il est actif.
@@ -132,8 +131,8 @@ positive. Aucun tirage aléatoire supplémentaire n'est consommé.
 
 La progression va uniquement à l'élève actif. Le partenaire garde son tour principal.
 Le journal et l'interface distinguent les deux contributions, la synergie, le gain
-potentiel et les points effectivement acquis : le plafond du chapitre peut limiter
-le gain appliqué. Les critiques et la complétion du chapitre évitent toujours la
+potentiel et les points effectivement acquis : le plafond de la leçon peut limiter
+le gain appliqué. Les critiques et la complétion de la leçon évitent toujours la
 riposte. Dans le prototype, Inès et Adam possèdent la relation de 90 nécessaire.
 Les seuils et coefficients restent provisoires et configurables dans les données.
 
@@ -143,10 +142,10 @@ Les seuils et coefficients restent provisoires et configurables dans les donnée
 - src/engine/actions.ts : file FIFO bornée, travail, soutien, repos et ripostes.
 - src/engine/reactions.ts : éligibilité, relations, voisinage et réactions des trois archétypes.
 - src/engine/effects.ts : bonus temporaires, statistiques effectives et expiration.
-- src/engine/simulation.ts : rounds, chapitres, phase du professeur et résultats.
+- src/engine/simulation.ts : rounds, phase du professeur et résultats.
 - src/engine/random.ts : Mulberry32 avec seed entière 32 bits.
 - src/engine/validation.ts : validation du scénario.
-- src/events.ts : événements typés avec séquence, leçon, chapitre et round.
+- src/events.ts : événements typés avec séquence, leçon et round.
 - src/ui/app.ts et web/ : lecture des événements et interface.
 - src/cli/ : journal console.
 
@@ -250,18 +249,17 @@ sans annuler un check positif réussi. Ce choix provisoire permet aux deux oppor
 de coexister. L'autorité réduit toujours les dégâts des perturbations et le recadrage
 réduit leur chance conditionnelle, sans neutraliser toutes les difficultés de moral.
 
-La maîtrise vaut `100 × progression du chapitre actuel / capacité du chapitre`.
+La maîtrise est la compréhension globale de la leçon, entre 0 et 100 %.
 Les aides pédagogiques (intelligence, complexité, combo) demandent par défaut 20 %,
 ou 60 % chez les deux élèves pour un combo. Leur puissance est multipliée par la
 maîtrise divisée par 100 ; le combo utilise la plus faible des deux maîtrises pour
 la synergie. Les deux contributions gardent leur calcul d'attaque habituel : le
 combo conserve ainsi un gain potentiel supérieur à leur somme, même au seuil de
-déblocage (le plafond du chapitre peut limiter la progression effectivement acquise). Une aide sociale (discipline, moral) ou une protection
+déblocage (le plafond de la leçon peut limiter la progression effectivement acquise). Une aide sociale (discipline, moral) ou une protection
 n'exige pas de maîtrise et ne subit pas cette modulation pédagogique.
 
 Chaque capacité peut redéfinir `mastery: { minimum, scalesPower }`. Les seuils communs
-et le malus sont dans `src/data/interactionRules.ts`. Un nouveau chapitre repart de
-ses propres acquis : la maîtrise du chapitre précédent ne débloque pas ses aides.
+et le malus sont dans `src/data/interactionRules.ts`. La maîtrise progresse sans remise à zéro intermédiaire pendant la leçon.
 Un combo refusé laisse possible une réduction simple accessible. Une capacité future
 ne réserve pas une réaction : seules les opportunités validées dans la fenêtre
 actuelle sont prioritaires.
@@ -275,10 +273,10 @@ refus. Les nouvelles consommations de RNG changent les résultats des anciennes 
 ## Réussite, effort et moral
 
 Le scénario active `learningRules`, configurables dans `src/data/learningRules.ts`.
-Chaque travail sur un chapitre incomplet coûte 1 concentration, même sans progrès.
+Chaque travail sur une leçon incomplète coûte 1 concentration, même sans progrès.
 Une progression réelle rapporte 1 moral, une seule fois par travail, combo compris.
 Les actions de travail supplémentaires suivent les mêmes règles. Le partenaire du
-combo ne paie pas l'effort du tour d'un autre élève. Un chapitre déjà acquis ne coûte rien.
+combo ne paie pas l'effort du tour d'un autre élève. Une leçon déjà acquise ne coûte rien.
 
 Ordre : calcul du gain, progression, récompense de moral, effort, réactions après
 attaque, puis riposte éventuelle. Le nouveau moral sert donc aux prochaines réactions
@@ -297,7 +295,7 @@ Le journal distingue réussite, effort, riposte et décrochage. Les scénarios s
 
 Le bilan signale les décrochages, le moral à 40 ou moins, les pertes nettes de
 concentration d'au moins 25, les réserves de concentration à 25 ou moins et les progrès inférieurs à 5 points de compréhension
-sur un chapitre encore incomplet. Ces seuils de présentation sont regroupés dans
+sur une leçon encore incomplète. Ces seuils de présentation sont regroupés dans
 `src/ui/roundSummary.ts` et ne modifient pas la simulation. Il affiche aussi la plus
 forte progression et, pour chaque élève, les aides, protections et combos utiles
 reçus ainsi que les dégâts de perturbation. Un nom cliquable sélectionne l'élève

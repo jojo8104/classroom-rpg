@@ -3,13 +3,12 @@ import type { ActionRules } from '../data/rules.js';
 
 export const roundValue = (value: number) => Math.round(value * 100) / 100;
 export const moraleMultiplier = (morale: number) => 0.1 + 1.8 * morale / 100;
-export const chapterCapacity = (lesson: Lesson) => lesson.requiredProgress / lesson.chapters.length;
 
 export function createLessonStates(students: readonly Student[], lesson: Lesson): StudentLessonState[] {
   return students.map(student => ({ studentId: student.id, lessonUnderstanding: 0,
     effects: [],
     concentration: student.concentration, morale: student.morale,
-    chapters: lesson.chapters.map(chapter => ({ chapterId: chapter.id, progress: 0, missedRounds: 0 })),
+    progress: 0, missedRounds: 0,
   }));
 }
 

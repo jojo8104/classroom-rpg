@@ -1,7 +1,7 @@
 import { ClassroomRenderer, type GraphicsQuality } from '../rendering/ClassroomRenderer.js';
 import { getRelation, modifyRelation, personalityLabels, personalityTraits } from '../engine/social.js';
 import { summarizeRound } from './roundSummary.js';
-import { chapterMastery, masteryRequirement, moraleChances } from '../engine/interactions.js';
+import { lessonMastery, masteryRequirement, moraleChances } from '../engine/interactions.js';
 import { moraleMultiplier } from '../engine/combat.js';
 import { createFullClassPrototype } from '../data/fullClassPrototype.js';
 import { createClassroomActionRules } from '../data/rules.js';
@@ -38,7 +38,6 @@ let busy = false;
 let completedRounds = 0;
 let shownTeacher = { ...scenario.teacher, maxPatience: scenario.teacher.maxPatience ?? scenario.teacher.patience };
 const reactionsUsed = new Map<string, number>();
-let activeChapterId = scenario.lesson.chapters[0]!.id;
 const reactionFeedback = new Map<string, string>();
 const statNames = { intelligence: 'Intelligence', discipline: 'Discipline', morale: 'Moral', complexityReduction: 'Réduction de complexité', disruptionReduction: 'Réduction des perturbations' };
 const el = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -46,12 +45,12 @@ const advance = el<HTMLButtonElement>('advance');
 const seed = el<HTMLInputElement>('seed');
 const speed = el<HTMLSelectElement>('simulation-speed');
 const metricsPanel=el('class-metrics');
-const totalRounds=scenario.lesson.chapters.reduce((sum,c)=>sum+c.roundCount,0);
+const totalRounds=scenario.lesson.roundCount;
 el<HTMLProgressElement>('lesson-progress').max=totalRounds;
 el('class-size').textContent=`LA CLASSE · ${scenario.classroom.rows} × ${scenario.classroom.columns} · ${scenario.students.length} élèves`;
 for(const direction of [-1,1]) el(direction<0 ? 'scroll-left' : 'scroll-right').onclick=()=>el('seat-viewport').scrollBy({left:direction*240,behavior:'smooth'});
 function renderMetrics() {
-  const states=gameState===GAME_STATE.CLASS_PREPARATION ? scenario.students.filter(s=>s.present!==false).map(s=>({studentId:s.id,lessonUnderstanding:s.knowledge?.[scenario.lesson.conceptIds[0]!] ?? 0,concentration:s.concentration,morale:s.morale,effects:[],chapters:[]})) : [...shownStates.values()];
+  const states=gameState===GAME_STATE.CLASS_PREPARATION ? scenario.students.filter(s=>s.present!==false).map(s=>({studentId:s.id,lessonUnderstanding:s.knowledge?.[scenario.lesson.conceptIds[0]!] ?? 0,concentration:s.concentration,morale:s.morale,effects:[],progress:0,missedRounds:0})) : [...shownStates.values()];
   const m=getClassMetrics(scenario.students,states);
   metricsPanel.textContent=`${m.count} présents · ${gameState===GAME_STATE.CLASS_PREPARATION ? 'Acquis' : 'Compréhension'} ${m.averageProgress.toFixed(0)} % · Concentration ${m.averageConcentration.toFixed(0)} · Moral ${m.averageMorale.toFixed(0)} · Discipline ${m.averageDiscipline.toFixed(0)} | En difficulté ${m.distribution.struggling} · Partiels ${m.distribution.partial} · Acquis ${m.distribution.acquired} · Maîtrisés ${m.distribution.mastered}`;
 }
@@ -74,12 +73,12 @@ function renderStudents() {
   const student = scenario.students.find(s => s.id === selected)!;
   const role = scenario.archetypes.find(a => a.id === student.archetypeId)!.name;
   const state = shownStates.get(selected)!;
-  el('student-detail').innerHTML = `<h2>${student.name}</h2><span class="role ${student.archetypeId}">${role}</span><div class="understanding">${shown.get(selected)} %</div><p>Compréhension de la leçon</p><dl>${[['Intelligence',student.intelligence],['Discipline',student.discipline],['Concentration (HP)',state.concentration],['Moral',state.morale]].map(([name,value]) => `<div><dt>${name}</dt><dd>${value}</dd></div>`).join('')}</dl><h3>Acquis par chapitre</h3>${state.chapters.map(c => `<p>${scenario.lesson.chapters.find(d => d.id === c.chapterId)!.name} : ${c.progress} / ${scenario.lesson.requiredProgress / scenario.lesson.chapters.length}<br><small>${c.missedRounds} étape(s) manquée(s)</small></p>`).join('')}`;
-  const mastery = chapterMastery(state, scenario.lesson, activeChapterId);
+  el('student-detail').innerHTML = `<h2>${student.name}</h2><span class="role ${student.archetypeId}">${role}</span><div class="understanding">${shown.get(selected)} %</div><p>Compréhension de la leçon</p><dl>${[['Intelligence',student.intelligence],['Discipline',student.discipline],['Concentration (HP)',state.concentration],['Moral',state.morale]].map(([name,value]) => `<div><dt>${name}</dt><dd>${value}</dd></div>`).join('')}</dl><h3>Progression de la leçon</h3><p>${state.progress} / ${scenario.lesson.requiredProgress}<br><small>${state.missedRounds} round(s) manqué(s)</small></p>`;
+  const mastery = lessonMastery(state);
   const morale = moraleMultiplier(effectiveStats(student, state).morale);
   const chances = moraleChances(morale, scenario.interactionRules!);
   const behaviorInfo = document.createElement('p');
-  behaviorInfo.textContent = `Maîtrise du chapitre : ${mastery} %. Moral effectif : ×${morale.toFixed(2)}. Occasion positive : ${Math.round(chances.positive * 10000) / 100} % · risque négatif : ${Math.round(chances.negative * 10000) / 100} %. Deux tirages indépendants.`;
+  behaviorInfo.textContent = `Maîtrise de la leçon : ${mastery} %. Moral effectif : ×${morale.toFixed(2)}. Occasion positive : ${Math.round(chances.positive * 10000) / 100} % · risque négatif : ${Math.round(chances.negative * 10000) / 100} %. Deux tirages indépendants.`;
   el('student-detail').append(behaviorInfo);
   if (reactionFeedback.has(selected)) {
     const last = document.createElement('p'); last.textContent = reactionFeedback.get(selected)!;
@@ -286,7 +285,7 @@ function syncControls() {
 function renderRoundResult(before: StudentLessonState[], events: GameEvent[]) {
   const delta = (value: number) => `${value > 0 ? '+' : ''}${Math.round(value * 100) / 100}`;
   const states = simulation.studentStates;
-  const summary = summarizeRound(before, states, events, scenario.lesson, activeChapterId);
+  const summary = summarizeRound(before, states, events, scenario.lesson);
   const selectStudent = (id: string) => { selected = id; detailOpen = true; renderStudents(); renderTeacher(); };
   const nameButton = (id: string) => {
     const button = document.createElement('button'); button.type = 'button'; button.textContent = studentName(id);
@@ -315,7 +314,7 @@ function renderRoundResult(before: StudentLessonState[], events: GameEvent[]) {
     const received = entry.received;
     const interactions = [received.support ? `${received.support} aide(s)` : '', received.protection ? `${received.protection} protection(s)` : '',
       received.combo ? `${received.combo} combo(s)` : '', received.disruptionDamage ? `Perturbations : −${received.disruptionDamage} concentration` : ''].filter(Boolean).join(' · ') || 'Aucune';
-    for (const value of [ `${state.lessonUnderstanding} % (${delta(state.lessonUnderstanding - previous.lessonUnderstanding)})`, `${state.concentration} (${delta(state.concentration - previous.concentration)})`, `${state.morale} (${delta(state.morale - previous.morale)})`, entry.alerts.join(' · ') || (entry.completed ? 'Chapitre acquis' : 'En apprentissage'), interactions]) {
+    for (const value of [ `${state.lessonUnderstanding} % (${delta(state.lessonUnderstanding - previous.lessonUnderstanding)})`, `${state.concentration} (${delta(state.concentration - previous.concentration)})`, `${state.morale} (${delta(state.morale - previous.morale)})`, entry.alerts.join(' · ') || (entry.completed ? 'Leçon acquise' : 'En apprentissage'), interactions]) {
       const cell = document.createElement('td'); cell.textContent = value; row.append(cell);
     }
     el('round-rows').append(row);
@@ -374,7 +373,7 @@ async function showEvents(events: GameEvent[]) {
     } else if (event.type === 'SPECIALIZATION_AVAILABLE') {
       note(`${studentName(event.studentId)} peut choisir sa spécialisation dans sa fiche.`);
     } else if (event.type === 'ROUND_STARTED') {
-      activeChapterId = event.chapterId; reactionFeedback.clear(); reactionsUsed.clear(); renderStudents();
+      reactionFeedback.clear(); reactionsUsed.clear(); renderStudents();
     } else if (event.type === 'REACTION_EVALUATED' && event.reason !== 'eligible') {
       const reason = event.reason === 'mastery' ? `maîtrise insuffisante (${event.mastery} %, cible ${event.targetMastery} %, minimum ${event.minimum} %)`
         : event.reason === 'locked' ? 'compétence verrouillée' : event.reason === 'abilityLimit' ? 'limite d’utilisation atteinte' : event.reason === 'relation' ? 'relation insuffisante' : event.reason === 'noEffect' ? 'aucun effet utile dans cette situation' : 'aucune occasion positive au tirage de moral';
@@ -428,7 +427,7 @@ async function showEvents(events: GameEvent[]) {
       note(el('status').textContent!); renderStudents();
     } else if (event.type === 'COMBINED_ATTACK_RESOLVED') {
       feedback(event.targetId, `Combo : +${event.appliedProgress} points`);
-      note(`Combo : ${event.activeGain} + ${event.partnerGain} + ${event.synergyGain} de synergie. ${studentName(event.targetId)} gagne ${event.appliedProgress} points de chapitre (potentiel ${event.potentialGain}).`);
+      note(`Combo : ${event.activeGain} + ${event.partnerGain} + ${event.synergyGain} de synergie. ${studentName(event.targetId)} gagne ${event.appliedProgress} points de leçon (potentiel ${event.potentialGain}).`);
     } else if (event.type === 'STUDENT_ACTION') {
       clearActionFeedback();
       el(event.actorId).classList.add('active');
@@ -447,9 +446,9 @@ async function showEvents(events: GameEvent[]) {
         el('status').textContent = `${studentName(event.actorId)} travaille${event.extra ? ' à nouveau' : ''}.`;
       }
       note(event.actionId === 'DISRUPT' ? `${studentName(event.actorId)} perturbe un voisin.` : event.actionId === 'RECOVER' ? `${studentName(event.actorId)} se repose.` : event.actionId === 'WORK' ? `${studentName(event.actorId)} travaille${event.extra ? ' à nouveau' : ''}.` : `${studentName(event.actorId)} soutient ${studentName(event.targetId)}.`);
-    } else if (event.type === 'CHAPTER_PROGRESS_CHANGED') {
-      const chapter = shownStates.get(event.studentId)!.chapters.find(c => c.chapterId === event.chapterId)!;
-      chapter.progress = event.progress; chapter.missedRounds = event.missedRounds;
+    } else if (event.type === 'LESSON_PROGRESS_CHANGED') {
+      const state = shownStates.get(event.studentId)!;
+      state.progress = event.progress; state.missedRounds = event.missedRounds;
       renderStudents();
     } else if (event.type === 'CONCENTRATION_CHANGED') {
       shownStates.get(event.studentId)!.concentration = event.after; renderStudents();
@@ -502,10 +501,8 @@ async function advanceLesson() {
     if (simulation.state === 'ROUND_READY') {
       const before = simulation.studentStates;
       const events = simulation.resolveRound();
-      const chapterId = events[0]!.chapterId;
-      const index = scenario.lesson.chapters.findIndex(c => c.id === chapterId);
-      el('chapter').textContent = scenario.lesson.chapters[index]!.name;
-      el('chapter-count').textContent = `CHAPITRE ${index + 1} / ${scenario.lesson.chapters.length}`;
+      el('lesson-name').textContent = scenario.lesson.name;
+      el('lesson-round').textContent = `ROUND ${completedRounds + 1} / ${totalRounds}`;
       el('phase').textContent = 'Les élèves travaillent';
       el('status').textContent = 'Observez leurs progrès et leurs interactions.';
       await showEvents(events);
@@ -525,14 +522,13 @@ function startLesson() {
   lessonPanel.hidden = true; el('round-result').hidden = true;
   shownRelations = simulation.classRelations!;
   reactionsUsed.clear(); reactionFeedback.clear();
-  activeChapterId = scenario.lesson.chapters[0]!.id;
   completedRounds = 0; shownTeacher = simulation.teacherState; actionSelect.value = 'ENCOURAGE';
   shownStates = new Map(simulation.studentStates.map(s => [s.studentId,s]));
   shown = new Map(simulation.studentStates.map(s => [s.studentId,0]));
   selected = simulation.studentStates[0]?.studentId ?? '';
   log.replaceChildren(); note('La leçon commence avec le placement choisi.');
-  el('chapter').textContent = scenario.lesson.chapters[0]!.name;
-  el('chapter-count').textContent = `CHAPITRE 1 / ${scenario.lesson.chapters.length}`;
+  el('lesson-name').textContent = scenario.lesson.name;
+  el('lesson-round').textContent = `ROUND 1 / ${totalRounds}`;
   el<HTMLProgressElement>('lesson-progress').value = 0;
   detailOpen = true; buildLessonSeats();
   targetSelect.replaceChildren();
@@ -547,7 +543,7 @@ function enterPreparation() {
   preparationView?.destroy();
   lessonPanel.hidden = true; el('round-result').hidden = true;
   preparationView = new ClassroomPreparationView(preparation, el('seats'), el('student-detail'));
-  el('chapter-count').textContent = 'AVANT LA LEÇON';
+  el('lesson-round').textContent = 'AVANT LA LEÇON';
   el<HTMLProgressElement>('lesson-progress').value = 0;
   syncControls();
 }

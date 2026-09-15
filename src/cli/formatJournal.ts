@@ -47,8 +47,7 @@ export function formatJournal(scenario: PrototypeScenario, result: SimulationRes
       case 'STUDENT_DROPPED_OUT': lines.push(`  ${name(event.studentId)} décroche`); break;
       case 'STUDENT_RESUMED': lines.push(`  ${name(event.studentId)} peut reprendre`); break;
       case 'CRITICAL_HIT': lines.push('  critique : pas de riposte'); break;
-      case 'CHAPTER_PROGRESS_CHANGED': lines.push(`  chapitre ${event.chapterId} : ${event.progress} points, ${event.missedRounds} étape(s) manquée(s)`); break;
-      case 'CHAPTER_STARTED': lines.push(`\nCHAPITRE : ${scenario.lesson.chapters.find(c => c.id === event.chapterId)!.name}`); break;
+      case 'LESSON_PROGRESS_CHANGED': lines.push(`  leçon : ${event.progress} points, ${event.missedRounds} étape(s) manquée(s)`); break;
       case 'ROUND_STARTED': lines.push(`\nROUND ${event.round}`); break;
       case 'STUDENT_ACTION': lines.push(`${name(event.actorId)} → ${event.actionId}${event.extra ? ' (action supplémentaire)' : ''} → ${name(event.targetId)}`); break;
       case 'UNDERSTANDING_CHANGED': lines.push(`  compréhension +${event.amount} : ${event.before} → ${event.after}`); break;
@@ -58,10 +57,9 @@ export function formatJournal(scenario: PrototypeScenario, result: SimulationRes
       case 'ROUND_ENDED': lines.push('\nRÉSULTAT DU ROUND', ...event.students.map(s => `  ${name(s.studentId)} : ${s.lessonUnderstanding} %`)); break;
       case 'TEACHER_INTERVENTION_STARTED': lines.push('INTERVENTION DU PROFESSEUR', `  pédagogie ${event.teacher.pedagogy} · autorité ${event.teacher.authority} · patience ${event.teacher.patience}/${event.teacher.maxPatience}`, ...event.actions.map(action => `  ${action.kind} : ${action.cost} patience`)); break;
       case 'TEACHER_INTERVENTION_ENDED': lines.push(event.intervention === 'PASS' || event.intervention === 'none' ? '  aucune intervention' : '  intervention terminée'); break;
-      case 'CHAPTER_ENDED': lines.push('FIN DU CHAPITRE'); break;
       case 'LESSON_ENDED': lines.push(`\nLEÇON TERMINÉE — ${scenario.lesson.name}`,
         ...event.results.flatMap(s => [`${name(s.studentId).padEnd(10)} ${s.understanding} % · HP ${s.concentration} · moral ${s.morale}`,
-          ...s.chapters.map(c => `  ${c.chapterId} : ${c.progress} points, ${c.missedRounds} étape(s) manquée(s)`)])); break;
+          `  ${s.progress} points, ${s.missedRounds} round(s) manqué(s)`])); break;
       default: { const exhaustive: never = event; throw new Error(`Événement inconnu : ${exhaustive}`); }
     }
   }

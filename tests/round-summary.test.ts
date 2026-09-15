@@ -6,15 +6,15 @@ import type { ActionEvent } from '../src/events.js';
 function fixture() { const s = createPrototype(); const before = createLessonStates(s.students, s.lesson); return { s, before, after: structuredClone(before) }; }
 describe('Bilan du round', () => {
   it('ne signale pas un chapitre acquis comme un manque de progrès', () => {
-    const { s, before, after } = fixture(); before[0]!.chapters[0]!.progress = 50; after[0]!.chapters[0]!.progress = 50;
-    const result = summarizeRound(before, after, [], s.lesson, s.lesson.chapters[0]!.id);
+    const { s, before, after } = fixture(); before[0]!.progress = 100; after[0]!.progress = 100;
+    const result = summarizeRound(before, after, [], s.lesson);
     expect(result[0]!.alerts).not.toContain('Peu de progression');
     expect(result[1]!.alerts).toContain('Peu de progression');
   });
   it('signale le décrochage et les pertes nettes sans modifier les états', () => {
     const { s, before, after } = fixture(); after[0]!.concentration = 0; after[0]!.morale = 30;
     const snapshot = structuredClone(after);
-    const result = summarizeRound(before, after, [], s.lesson, s.lesson.chapters[0]!.id);
+    const result = summarizeRound(before, after, [], s.lesson);
     expect(result[0]!.alerts).toEqual(expect.arrayContaining(['Décroché', 'Moral faible', 'Forte perte de concentration']));
     expect(after).toEqual(snapshot); after[0]!.morale = 100;
     expect(result[0]!.alerts).toContain('Moral faible');
@@ -24,7 +24,7 @@ describe('Bilan du round', () => {
     after[0]!.concentration = before[0]!.concentration - 20;
     after[1]!.concentration = before[1]!.concentration - 25;
     before[2]!.concentration = 25; after[2]!.concentration = 25;
-    const result = summarizeRound(before, after, [], s.lesson, s.lesson.chapters[0]!.id);
+    const result = summarizeRound(before, after, [], s.lesson);
     expect(result[0]!.alerts).not.toContain('Forte perte de concentration');
     expect(result[1]!.alerts).toContain('Forte perte de concentration');
     expect(result[2]!.alerts).toContain('Concentration faible');
@@ -39,7 +39,7 @@ describe('Bilan du round', () => {
       { type: 'DISRUPTION_RESOLVED', sourceId, targetId, power: 16, afterAuthority: 6.4, damage: 6.4 },
       { type: 'DISRUPTION_RESOLVED', sourceId, targetId, power: 16, afterAuthority: 0, damage: 0 },
     ];
-    const result = summarizeRound(before, after, events, s.lesson, s.lesson.chapters[0]!.id);
+    const result = summarizeRound(before, after, events, s.lesson);
     expect(result[0]!.received).toEqual({ support: 0, protection: 0, combo: 1, disruptionDamage: 6.4 });
     expect(result[1]!.received.combo).toBe(0);
   });

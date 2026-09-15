@@ -14,7 +14,7 @@ function fixture() {
   return { students, lesson, states: createLessonStates(students, lesson), rules };
 }
 function run(f: ReturnType<typeof fixture>, seed = 1) {
-  return resolveActionRound(f.students, f.states, new SeededRandom(seed), f.rules, f.lesson, f.lesson.chapters[0]!.id);
+  return resolveActionRound(f.students, f.states, new SeededRandom(seed), f.rules, f.lesson);
 }
 describe('Aléatoire à seed', () => {
   it('reproduit une séquence connue de Mulberry32', () => {
@@ -107,7 +107,7 @@ describe('Combat 1.1', () => {
     const result = run(f);
     const state = result.students[0]!;
     expect(state.lessonUnderstanding).toBe(0);
-    expect(state.chapters[0]!.missedRounds).toBe(1);
+    expect(state.missedRounds).toBe(1);
     expect(state.concentration).toBe(f.rules.recovery);
     expect(state.morale).toBe(f.states[0]!.morale);
     expect(result.events.filter(e => e.type === 'STUDENT_ACTION' && e.actorId === state.studentId)).toEqual([
@@ -136,15 +136,14 @@ describe('Combat 1.1', () => {
     expect(critical.students[0]!.concentration).toBe(f.states[0]!.concentration);
     expect(critical.events.filter(e => e.type === 'LESSON_RETALIATED')).toHaveLength(0);
   });
-  it('compléter un chapitre évite la riposte et ne remplit pas le chapitre suivant', () => {
+  it('completer la lecon evite la riposte et plafonne la progression', () => {
     const f = fixture();
     f.rules.workScale = 100;
     const result = run(f);
-    expect(result.students[0]!.lessonUnderstanding).toBe(50);
-    expect(result.students[0]!.chapters[1]!.progress).toBe(0);
+    expect(result.students[0]!.lessonUnderstanding).toBe(100);
     expect(result.events.filter(e => e.type === 'LESSON_RETALIATED')).toHaveLength(0);
     f.states = result.students;
-    expect(run(f).students[0]!.lessonUnderstanding).toBe(50);
+    expect(run(f).students[0]!.lessonUnderstanding).toBe(100);
   });
   it('SUPPORT restaure les HP, sans dépasser 100, et ajoute WORK en fin de file', () => {
     const f = fixture();
@@ -178,7 +177,7 @@ describe('Combat 1.1', () => {
   it('rejette les états, paramètres et références de chapitre invalides', () => {
     const f = fixture();
     f.rules.recovery = 0; expect(() => run(f)).toThrow();
-    f.rules.recovery = 30; f.states[0]!.chapters[0]!.progress = 999; expect(() => run(f)).toThrow();
+    f.rules.recovery = 30; f.states[0]!.progress = 999; expect(() => run(f)).toThrow();
     f.states = createLessonStates(f.students,f.lesson); f.states.pop(); expect(() => run(f)).toThrow('correspondre');
   });
 });

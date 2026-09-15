@@ -92,12 +92,6 @@ export function validateScenario(scenario: PrototypeScenario): string[] {
     if (!conceptIds.has(entry.conceptId) || poolIds.has(entry.conceptId) || !Number.isFinite(entry.baseRate) || entry.baseRate < 0 || entry.baseRate > 1) errors.push('Pool de Concepts invalide.');
     poolIds.add(entry.conceptId);
   }
-  uniqueIds(lesson.chapters, 'Chapitre');
-  if (lesson.chapters.length === 0) errors.push('Leçon : au moins un chapitre requis.');
-  for (const chapter of lesson.chapters) {
-    if (!Number.isInteger(chapter.roundCount) || chapter.roundCount < 1) {
-      errors.push(`Chapitre ${chapter.id} : nombre de rounds entier positif requis.`);
-    }
-  }
+  if (!Number.isSafeInteger(lesson.roundCount) || lesson.roundCount < 1) errors.push('Leçon : nombre de rounds entier positif requis.');
   return errors;
 }

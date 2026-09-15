@@ -8,7 +8,7 @@ export function benchmarkClassroom(options:BenchmarkOptions={}) {
   const ticks=options.ticks ?? 100,lessons=options.lessons ?? 1,seed=options.seed ?? 701;
   if(!Number.isSafeInteger(ticks) || ticks<1 || !Number.isSafeInteger(lessons) || lessons<1) throw new Error('Ticks et leçons entiers positifs requis.');
   const scenario=createFullClassPrototype({rows,columns,maxStudents:rows*columns});
-  scenario.lesson.chapters=[{id:'benchmark',name:'Étude de classe',roundCount:ticks}];
+  scenario.lesson.roundCount=ticks;
   const rules=createClassroomActionRules(scenario.students.length),samples:number[]=[];
   let events=0,interactions=0,maximumQueue=0,maximumChain=0,mainActions=0,positiveEffects=0,negativeEffects=0;
   const behavior=new Map<string,{work:number;support:number;disrupt:number;recover:number}>();

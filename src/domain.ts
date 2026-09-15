@@ -124,12 +124,6 @@ export interface Concept {
 
 export interface Program { id: string; name: string }
 
-export interface LessonChapter {
-  id: string;
-  name: string;
-  roundCount: number;
-}
-
 export interface Lesson {
   tags?: string[];
   conceptPool?: { conceptId: string; baseRate: number }[];
@@ -139,7 +133,7 @@ export interface Lesson {
   id: string;
   topicId: string;
   name: string;
-  chapters: LessonChapter[];
+  roundCount: number;
   conceptIds: string[];
 }
 
@@ -149,18 +143,14 @@ export interface StudentLessonState {
   lessonUnderstanding: number;
   concentration: number;
   morale: number;
-  chapters: ChapterProgress[];
-}
-
-export interface ChapterProgress {
-  chapterId: string;
   progress: number;
   missedRounds: number;
 }
 
 export interface LessonResult {
   progression?: import('./engine/progression.js').ProgressionResult;
-  chapters: ChapterProgress[];
+  progress: number;
+  missedRounds: number;
   concentration: number;
   morale: number;
   studentId: string;

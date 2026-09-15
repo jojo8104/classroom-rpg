@@ -1,7 +1,7 @@
-import type { Lesson, ReactionAbility, StudentLessonState } from '../domain.js';
+import type { ReactionAbility, StudentLessonState } from '../domain.js';
 import type { ActionEvent, ReactionWindow } from '../events.js';
 import { createInteractionRules, type InteractionRules } from '../data/interactionRules.js';
-import { chapterCapacity, moraleMultiplier, roundValue } from './combat.js';
+import { moraleMultiplier, roundValue } from './combat.js';
 
 // Le stockage 0–100 et le multiplicateur historique 0,10–1,90 sont conservés.
 export function moraleChances(coefficient: number, rules = createInteractionRules()) {
@@ -23,10 +23,8 @@ export function checkMorale(studentId: string, morale: number, random: { next():
   }
   return result;
 }
-export function chapterMastery(state: StudentLessonState, lesson: Lesson, chapterId: string): number {
-  const chapter = state.chapters.find(chapter => chapter.chapterId === chapterId);
-  if (!chapter) throw new Error('Chapitre de maîtrise inconnu.');
-  return roundValue(100 * chapter.progress / chapterCapacity(lesson));
+export function lessonMastery(state: StudentLessonState): number {
+  return state.lessonUnderstanding;
 }
 export function masteryRequirement(ability: ReactionAbility, rules: InteractionRules) {
   const pedagogical = ability.effect === 'REDUCE_COMPLEXITY' || ability.effect === 'COMBINED_ATTACK' ||

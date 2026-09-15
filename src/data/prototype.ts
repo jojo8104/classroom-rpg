@@ -62,10 +62,7 @@ export function createPrototype(): PrototypeScenario {
       name: 'Introduction aux fractions - provisions de voyage',
       tags: ['mathematics', 'sharing'],
       conceptPool: [{ conceptId: 'fraction', baseRate: 0.04 }, { conceptId: 'numerator', baseRate: 0.03 }, { conceptId: 'denominator', baseRate: 0.03 }],
-      chapters: [
-        { id: 'discover', name: 'Découvrir', roundCount: 3 },
-        { id: 'understand', name: 'Comprendre', roundCount: 3 },
-      ],
+      roundCount: 6,
       conceptIds: ['fraction', 'numerator', 'denominator'],
     },
     concepts: structuredClone(conceptCatalog),

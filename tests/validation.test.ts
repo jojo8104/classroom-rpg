@@ -9,7 +9,7 @@ describe('Base du prototype', () => {
     expect(scenario.students).toHaveLength(9);
     expect(scenario.classroom.seats).toHaveLength(9);
     expect(scenario.archetypes).toHaveLength(3);
-    expect(scenario.lesson.chapters.reduce((sum, chapter) => sum + chapter.roundCount, 0)).toBe(6);
+    expect(scenario.lesson.roundCount).toBe(6);
     expect(scenario.lesson.conceptIds).toHaveLength(3);
     expect(scenario.lesson.conceptIds.every(id => scenario.concepts.some(concept => concept.id === id))).toBe(true);
   });
@@ -33,7 +33,7 @@ describe('Base du prototype', () => {
     ['matière inconnue', (s: ReturnType<typeof createPrototype>) => { s.topic.subjectId = 'missing'; }],
     ['thème inconnu', (s: ReturnType<typeof createPrototype>) => { s.lesson.topicId = 'missing'; }],
     ['concept inconnu', (s: ReturnType<typeof createPrototype>) => { s.lesson.conceptIds.push('missing'); }],
-    ['rounds entier positif', (s: ReturnType<typeof createPrototype>) => { s.lesson.chapters[0]!.roundCount = 0; }],
+    ['rounds entier positif', (s: ReturnType<typeof createPrototype>) => { s.lesson.roundCount = 0; }],
     ['dimensions entières positives', (s: ReturnType<typeof createPrototype>) => { s.classroom.rows = 1.5; }],
   ])('rejette une configuration invalide : %s', (message, change) => {
     const scenario = createPrototype();

@@ -10,7 +10,7 @@ function fixture(): WorkTurnContext {
   const rules = createActionRules();
   rules.criticalChance = 0;
   return { student: students[0]!, state: createLessonStates(students, lesson)[0]!,
-    chapterId: lesson.chapters[0]!.id, lesson, rules, random: new SeededRandom(42), events: [],
+    lesson, rules, random: new SeededRandom(42), events: [],
     changeConcentration(state, value) { state.concentration = value; } };
 }
 
@@ -45,7 +45,7 @@ describe('Fenêtres du tour de travail', () => {
 
   it('un chapitre déjà acquis n’ouvre pas de fenêtre et ne consomme aucun tirage', () => {
     const context = fixture();
-    context.state.chapters[0]!.progress = context.lesson.requiredProgress / context.lesson.chapters.length;
+    context.state.progress = context.lesson.requiredProgress;
     expect([...resolveWorkTurn(context)]).toEqual([]);
     expect(context.events).toEqual([]);
     expect(context.random.next()).toBe(new SeededRandom(42).next());

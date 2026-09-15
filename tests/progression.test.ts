@@ -12,7 +12,7 @@ import { resolveActionRound } from '../src/engine/actions.js';
 import { createActionRules } from '../src/data/rules.js';
 import { SeededRandom } from '../src/engine/random.js';
 
-function events(payloads: GameEventPayload[]): GameEvent[] { return payloads.map((e,i) => ({ ...e, sequence: i+1, lessonId: 'test', chapterId: 'discover', round: 1 })); }
+function events(payloads: GameEventPayload[]): GameEvent[] { return payloads.map((e,i) => ({ ...e, sequence: i+1, lessonId: 'test', round: 1 })); }
 function support() { return createProgressionPrototype().students.find(s => s.archetypeId === 'support')!; }
 function used(studentId: string, abilityId: string, effective = true): GameEventPayload { return { type: 'ABILITY_USED', studentId, targetId: 'student-1', abilityId, effective }; }
 
@@ -86,9 +86,9 @@ function reactionFixture(level: number, mastery = 0, relation = 100) {
   scenario.students.forEach(s => { s.morale = 100; s.concentration = 100; s.disruptionChance = 0; });
   scenario.classRelations = { links: [{ from: source!.id, to: target!.id, score: relation }, { from: target!.id, to: source!.id, score: relation }] };
   const states = createLessonStates(scenario.students, scenario.lesson);
-  states.forEach(s => { s.chapters[0]!.progress = mastery / 2; s.lessonUnderstanding = mastery / 2; });
+  states.forEach(s => { s.progress = mastery; s.lessonUnderstanding = mastery; });
   const rules = createActionRules(); rules.criticalChance = 0;
-  const run = () => resolveActionRound(scenario.students, states, new SeededRandom(42), rules, scenario.lesson, 'discover', {
+  const run = () => resolveActionRound(scenario.students, states, new SeededRandom(42), rules, scenario.lesson, {
     classroom: scenario.classroom, archetypes: scenario.archetypes, relations: [], classRelations: structuredClone(scenario.classRelations!),
     abilities: scenario.reactionAbilities!, interactionRules: scenario.interactionRules!, abilityUsage: new AbilityUsage(),
   });
@@ -103,7 +103,7 @@ describe('Compétences dans le moteur existant', () => {
     f.scenario.students[0]!.morale = 70;
     f.states[0]!.morale = 70;
     const rules = createActionRules(); rules.workScale = 0.1; rules.criticalChance = 0;
-    const result = resolveActionRound(f.scenario.students, f.states, new SeededRandom(42), rules, f.scenario.lesson, 'discover', {
+    const result = resolveActionRound(f.scenario.students, f.states, new SeededRandom(42), rules, f.scenario.lesson, {
       classroom: f.scenario.classroom, archetypes: f.scenario.archetypes, relations: [], classRelations: f.scenario.classRelations!,
       abilities: [a.reaction], interactionRules: f.scenario.interactionRules!, abilityUsage: new AbilityUsage(),
     });

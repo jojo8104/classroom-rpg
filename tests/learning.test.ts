@@ -11,7 +11,7 @@ function fixture(): WorkTurnContext {
   const s = createPrototype(); const rules = createActionRules(); rules.criticalChance = 0;
   const events: WorkTurnContext['events'] = [];
   return { student: s.students[0]!, state: createLessonStates(s.students, s.lesson)[0]!, lesson: s.lesson,
-    chapterId: s.lesson.chapters[0]!.id, rules, learningRules: createLearningRules(), events, random: new SeededRandom(1),
+    rules, learningRules: createLearningRules(), events, random: new SeededRandom(1),
     changeConcentration(state, value, reason) { updateConcentration(state, value, reason, rules.dropoutMoraleLoss, events); } };
 }
 const run = (c: WorkTurnContext) => [...resolveWorkTurn(c)];
@@ -27,7 +27,7 @@ describe('Réussite, effort et moral', () => {
     expect(c.state.morale).toBe(65); expect(c.state.concentration).toBe(54);
   });
   it('ne fait rien pour un chapitre déjà acquis', () => {
-    const c = fixture(); c.state.chapters[0]!.progress = 50; run(c);
+    const c = fixture(); c.state.progress = 100; c.state.lessonUnderstanding = 100; run(c);
     expect(c.events).toEqual([]); expect(c.state.morale).toBe(65); expect(c.state.concentration).toBe(55);
   });
   it.each(['critical', 'completion'])('paie l’effort malgré l’exemption %s', exemption => {

@@ -24,7 +24,7 @@ function fixture(relation = 70) {
 }
 function run(f: ReturnType<typeof fixture>, random = new SeededRandom(42)) {
   const s = f.scenario;
-  return resolveActionRound(s.students, f.states, random, f.rules, s.lesson, s.lesson.chapters[0]!.id,
+  return resolveActionRound(s.students, f.states, random, f.rules, s.lesson,
     { classroom: s.classroom, archetypes: s.archetypes, relations: s.relations!, abilities: s.reactionAbilities! });
 }
 const combos = (result: ReturnType<typeof run>) => result.events.filter(event => event.type === 'COMBINED_ATTACK_RESOLVED');
@@ -38,9 +38,9 @@ describe('Réactions offensives', () => {
     expect(result.events.find(event => event.type === 'REACTION_TRIGGERED')).toMatchObject({
       effect: 'REDUCE_COMPLEXITY', sourceId: 'student-2', targetId: 'student-1', before: 50, after: 36,
     });
-    expect(result.students[0]!.chapters[0]!.progress).toBeGreaterThan(workGain(f.scenario.students[0]!, 50, f.scenario.lesson, f.rules, 0.5));
-    expect(result.students[1]!.chapters[0]!.progress).toBe(workGain(f.scenario.students[1]!, 50, f.scenario.lesson, f.rules, 0.5));
-    expect(result.students[2]!.chapters[0]!.progress).toBe(workGain(f.scenario.students[2]!, 50, f.scenario.lesson, f.rules, 0.5));
+    expect(result.students[0]!.progress).toBeGreaterThan(workGain(f.scenario.students[0]!, 50, f.scenario.lesson, f.rules, 0.5));
+    expect(result.students[1]!.progress).toBe(workGain(f.scenario.students[1]!, 50, f.scenario.lesson, f.rules, 0.5));
+    expect(result.students[2]!.progress).toBe(workGain(f.scenario.students[2]!, 50, f.scenario.lesson, f.rules, 0.5));
     expect(f).toEqual(original);
     expect(combos(result)).toHaveLength(0);
   });
@@ -60,21 +60,20 @@ describe('Réactions offensives', () => {
     expect(combo.partnerGain).toBe(workGain(f.scenario.students[1]!, 50, f.scenario.lesson, f.rules, .5));
     expect(combo.synergyGain).toBeGreaterThan(0);
     expect(combo.potentialGain).toBeGreaterThan(combo.activeGain + combo.partnerGain);
-    expect(result.students[0]!.chapters[0]!.progress).toBe(combo.potentialGain);
+    expect(result.students[0]!.progress).toBe(combo.potentialGain);
     const partnerTurn = result.events.findIndex(event => event.type === 'STUDENT_ACTION' && event.actorId === 'student-2');
     expect(result.events.slice(0, partnerTurn).filter(event => event.type === 'UNDERSTANDING_CHANGED' && event.studentId === 'student-2')).toHaveLength(0);
     expect(result.events.filter(event => event.type === 'STUDENT_ACTION' && event.actorId === 'student-2' && !event.extra)).toHaveLength(1);
-    expect(result.students[1]!.chapters[0]!.progress).toBe(combo.partnerGain);
+    expect(result.students[1]!.progress).toBe(combo.partnerGain);
     expect(result.events.findIndex(event => event.type === 'COMBINED_ATTACK_STARTED')).toBeLessThan(result.events.indexOf(combo));
   });
 
   it('plafonne le gain appliqué au chapitre sans masquer le potentiel du combo', () => {
-    const f = fixture(90); f.scenario.lesson.requiredProgress = 40;
+    const f = fixture(90); f.scenario.lesson.requiredProgress = 20;
     const result = run(f);
     const combo = combos(result)[0]!;
     expect(combo.potentialGain).toBeGreaterThan(combo.appliedProgress);
     expect(combo.appliedProgress).toBe(20);
-    expect(result.students[0]!.chapters[1]!.progress).toBe(0);
     expect(result.events.some(event => event.type === 'LESSON_RETALIATED' && event.studentId === 'student-1')).toBe(false);
   });
 

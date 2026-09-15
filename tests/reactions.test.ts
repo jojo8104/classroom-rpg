@@ -19,7 +19,7 @@ function fixture() {
 }
 function run(f: ReturnType<typeof fixture>) {
   const s = f.scenario;
-  return resolveActionRound(s.students, f.states, new SeededRandom(42), f.rules, s.lesson, s.lesson.chapters[0]!.id,
+  return resolveActionRound(s.students, f.states, new SeededRandom(42), f.rules, s.lesson,
     { classroom: s.classroom, archetypes: s.archetypes, relations: s.relations!, abilities: s.reactionAbilities! });
 }
 const reactions = (result: ReturnType<typeof run>) => result.events.filter(event => event.type === 'REACTION_TRIGGERED');

@@ -5,17 +5,16 @@ import { Simulation } from '../src/engine/simulation.js';
 import { formatJournal } from '../src/cli/formatJournal.js';
 
 describe('Leçon complète', () => {
-  it('conserve une lacune du premier chapitre après reprise dans le second', () => {
+  it('permet de rattraper un round manque pendant la meme lecon', () => {
     const scenario = createPrototype();
     scenario.students = scenario.students.slice(0, 1);
     scenario.relations = [];
     scenario.students[0]!.concentration = 0;
-    scenario.lesson.chapters[0]!.roundCount = 1;
+    scenario.lesson.roundCount = 4;
     const rules = createActionRules(); rules.workScale = 100; rules.criticalChance = 0;
     const result = new Simulation(scenario, 1, rules).runToCompletion();
-    expect(result.results[0]!.chapters[0]).toMatchObject({ progress: 0, missedRounds: 1 });
-    expect(result.results[0]!.chapters[1]!.progress).toBe(50);
-    expect(result.results[0]!.understanding).toBe(50);
+    expect(result.results[0]!).toMatchObject({ progress: 100, missedRounds: 1 });
+    expect(result.results[0]!.understanding).toBe(100);
   });
 
   it('prépare une nouvelle leçon avec des HP restaurés et le moral conservé', () => {
@@ -31,7 +30,7 @@ describe('Leçon complète', () => {
     const next = createPrototype(); next.lesson.id = 'another-lesson'; next.students = result.nextLessonStudents;
     next.relations = [];
     const simulation = new Simulation(next, 1);
-    expect(simulation.studentStates[0]!.chapters.every(c => c.progress === 0 && c.missedRounds === 0)).toBe(true);
+    expect(simulation.studentStates[0]!).toMatchObject({ progress: 0, missedRounds: 0 });
     expect(simulation.studentStates[0]!.concentration).toBe(100);
     expect(simulation.resolveRound().some(e => e.type === 'STUDENT_ACTION' && e.actionId === 'WORK')).toBe(true);
   });
@@ -44,18 +43,16 @@ describe('Leçon complète', () => {
         expect(student.understanding >= 0 && student.understanding <= 100).toBe(true);
         expect(student.concentration >= 0 && student.concentration <= 100).toBe(true);
         expect(student.morale >= 0 && student.morale <= 100).toBe(true);
-        expect(student.chapters.every(c => c.progress >= 0 && c.progress <= 50)).toBe(true);
+        expect(student.progress >= 0 && student.progress <= 100).toBe(true);
       }
     }
   }, 30000);
-  it('enchaîne six rounds, deux chapitres et six phases du professeur', () => {
+  it('enchaîne six rounds et six phases du professeur', () => {
     const result = new Simulation(createPrototype(), 12345).runToCompletion();
     expect(result.results).toHaveLength(9);
     expect(new Set(result.results.map(r => r.studentId)).size).toBe(9);
     expect(result.results.every(r => r.understanding >= 0 && r.understanding <= 100)).toBe(true);
     expect(result.events.filter(e => e.type === 'ROUND_STARTED').map(e => e.round)).toEqual([1, 2, 3, 4, 5, 6]);
-    expect(result.events.filter(e => e.type === 'CHAPTER_STARTED').map(e => e.chapterId)).toEqual(['discover', 'understand']);
-    expect(result.events.filter(e => e.type === 'CHAPTER_ENDED')).toHaveLength(2);
     expect(result.events.filter(e => e.type === 'TEACHER_INTERVENTION_ENDED')).toHaveLength(6);
     for (let round = 1; round <= 6; round++) {
       const actions = result.events.filter(e => e.type === 'STUDENT_ACTION').filter(e => e.round === round && !e.extra);

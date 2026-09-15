@@ -36,7 +36,7 @@ export type ActionEvent =
   | { type: 'STUDENT_DROPPED_OUT'; studentId: string }
   | { type: 'STUDENT_RESUMED'; studentId: string }
   | { type: 'CRITICAL_HIT'; studentId: string }
-  | { type: 'CHAPTER_PROGRESS_CHANGED'; studentId: string; chapterId: string; progress: number; missedRounds: number }
+  | { type: 'LESSON_PROGRESS_CHANGED'; studentId: string; progress: number; missedRounds: number }
   | { type: 'STUDENT_ACTION'; actorId: string; actionId: ActionKind; targetId: string; extra: boolean }
   | { type: 'UNDERSTANDING_CHANGED'; studentId: string; before: number; after: number; amount: number }
   | { type: 'EFFECT_APPLIED'; sourceId: string; targetId: string; effectId: 'concentration_bonus'; before: number; after: number; amount: number }
@@ -53,7 +53,6 @@ type LessonEvent =
   | { type: 'SPECIALIZATION_SELECTED'; studentId: string; specializationId: import('./data/abilities.js').SpecializationId }
   | { type: 'LESSON_RESULTS'; results: LessonResult[] }
   | { type: 'LESSON_STARTED'; seed: number }
-  | { type: 'CHAPTER_STARTED' }
   | { type: 'ROUND_STARTED' }
   | { type: 'ROUND_ENDED'; students: StudentLessonState[] }
   | { type: 'TEACHER_INTERVENTION_STARTED'; teacher: TeacherState; actions: { kind: TeacherActionKind; cost: number }[] }
@@ -61,7 +60,6 @@ type LessonEvent =
   | { type: 'TEACHER_ACTION_APPLIED'; action: TeacherActionKind; targetIds: string[]; power: number }
   | { type: 'TEACHER_PATIENCE_CHANGED'; before: number; after: number }
   | { type: 'TEACHER_INTERVENTION_ENDED'; intervention: TeacherActionKind | 'none' }
-  | { type: 'CHAPTER_ENDED' }
   | { type: 'LESSON_ENDED'; results: LessonResult[] };
 
 export type GameEventPayload = ActionEvent | LessonEvent;
@@ -70,6 +68,5 @@ export type GameEvent = GameEventPayload & {
   priority?: import('./engine/diagnostics.js').EventPriority;
   sequence: number;
   lessonId: string;
-  chapterId: string;
   round: number;
 };
