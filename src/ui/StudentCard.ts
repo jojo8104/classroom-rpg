@@ -18,6 +18,8 @@ export function renderStudentCard(root: HTMLElement, student: Student, scenario:
     const value = knowledgeOf(student, conceptId);
     paragraph(root, `${scenario.concepts.find(c => c.id === conceptId)?.name ?? conceptId} : ${value === null ? 'non évalué' : value + ' %'}`);
   }
+  paragraph(root, 'Concepts découverts', 'h3');
+  paragraph(root, student.concepts?.acquired.map(id => scenario.concepts.find(c => c.id === id)?.name ?? id).join(', ') || 'Aucun pour le moment');
   const preference = student.seatPreferences;
   paragraph(root, 'Aime : ' + (preference?.likes.map(t => tagLabels[t] ?? t).join(', ') || 'aucune préférence'));
   paragraph(root, 'Évite : ' + (preference?.dislikes.map(t => tagLabels[t] ?? t).join(', ') || 'aucune préférence'));

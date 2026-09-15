@@ -44,6 +44,7 @@ export type ActionEvent =
   | { type: 'ACTION_LIMIT_REACHED'; studentId: string; reason: ActionLimitReason };
 
 type LessonEvent =
+  | { type: 'concept_discovered'; studentId: string; conceptId: string; lessonId: string }
   | { type: 'XP_GAINED'; studentId: string; amount: number; rewards: import('./engine/progression.js').ProgressionResult['rewards'] }
   | { type: 'STUDENT_LEVEL_UP'; studentId: string; oldLevel: number; newLevel: number }
   | { type: 'ABILITY_UNLOCKED'; studentId: string; abilityId: string; level: number; source: 'LEVEL_UP' | 'SPECIALIZATION' | 'EVENT' }

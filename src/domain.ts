@@ -1,5 +1,6 @@
 // Les définitions persistantes sont séparées de l'état temporaire d'une séance.
 export interface Student {
+  concepts?: { acquired: string[]; progress: Record<string, number> };
   progression?: import('./engine/progression.js').StudentProgression;
   personality?: PersonalityProfile;
   id: string;
@@ -102,6 +103,7 @@ export interface Classroom {
 }
 
 export interface Subject {
+  programId?: string;
   id: string;
   name: string;
 }
@@ -115,7 +117,12 @@ export interface Topic {
 export interface Concept {
   id: string;
   name: string;
+  description: string;
+  tags: string[];
+  effects: { type: 'learning_boost' | 'knowledge' | 'stat_modifier' | 'behavior'; tags: string[]; value: number }[];
 }
+
+export interface Program { id: string; name: string }
 
 export interface LessonChapter {
   id: string;
@@ -124,6 +131,8 @@ export interface LessonChapter {
 }
 
 export interface Lesson {
+  tags?: string[];
+  conceptPool?: { conceptId: string; baseRate: number }[];
   complexity: number;
   pressure: number;
   requiredProgress: number;
@@ -160,6 +169,7 @@ export interface LessonResult {
 }
 
 export interface PrototypeScenario {
+  program?: Program;
   classRelations?: ClassRelations;
   learningRules?: import('./data/learningRules.js').LearningRules;
   interactionRules?: import('./data/interactionRules.js').InteractionRules;

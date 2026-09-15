@@ -360,6 +360,8 @@ async function showEvents(events: GameEvent[]) {
         const details = document.createElement('small'); details.textContent = Object.entries(p.rewards).map(([k,v]) => `${rewardLabels[k as keyof typeof rewardLabels]} +${v}`).join(' · ');
         row.append(document.createElement('br'), details);
         if (p.unlockedAbilities.length) row.append(document.createElement('br'), 'Compétences apprises : ' + p.unlockedAbilities.map(id => abilityCatalog.find(a => a.id === id)!.name).join(', '));
+        const discoveries = events.filter(e => e.type === 'concept_discovered' && e.studentId === result.studentId);
+        for (const discovery of discoveries) if (discovery.type === 'concept_discovered') row.append(document.createElement('br'), 'Concept découvert : ' + (scenario.concepts.find(c => c.id === discovery.conceptId)?.name ?? discovery.conceptId));
         panel.append(row);
       }
       renderStudents();

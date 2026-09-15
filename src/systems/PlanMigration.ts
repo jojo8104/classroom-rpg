@@ -1,3 +1,4 @@
+import { initializeConcepts } from './Concepts.js';
 import type { PrototypeScenario, Student, ClassRelations } from '../domain.js';
 import type { ClassroomLayout, ClassroomPlans } from '../models/ClassroomLayout.js';
 import { createLayout } from '../models/ClassroomLayout.js';
@@ -10,6 +11,7 @@ export function migratePreparationSave(saved: PreparationSave,scenario: Prototyp
   if(saved.classRelations) oldScenario.classRelations=saved.classRelations; else delete oldScenario.classRelations;
   if(validateScenario(oldScenario).length) throw new Error('Profils sauvegardés invalides.');
   const students=scenario.students.map(current=>structuredClone(saved.students.find(s=>s.id===current.id) ?? current));
+  students.forEach(initializeConcepts);
   const migrate=(old:ClassroomLayout):ClassroomLayout=>{
     const {rows,columns}=scenario.classroom;
     if(old.rows===rows && old.columns===columns && students.length===saved.students.length) return structuredClone(old);

@@ -1,3 +1,4 @@
+import { conceptCatalog } from './concepts.js';
 import { createLearningRules } from './learningRules.js';
 import { createInteractionRules } from './interactionRules.js';
 import type { PrototypeScenario } from '../domain.js';
@@ -52,22 +53,21 @@ export function createPrototype(): PrototypeScenario {
       { id: 'defensive', name: 'Défensif', reactionIds: ['protect_neighbor'] },
       { id: 'support', name: 'Support', reactionIds: ['explain_neighbor'] },
     ],
-    subject: { id: 'mathematics', name: 'Mathématiques' },
+    program: { id: 'general-primary', name: 'École des royaumes - enseignement primaire' },
+    subject: { programId: 'general-primary', id: 'mathematics', name: 'Mathématiques' },
     topic: { id: 'fractions', subjectId: 'mathematics', name: 'Fractions' },
     lesson: {
       complexity: 50, pressure: 70, requiredProgress: 100,
       id: 'introduction-to-fractions', topicId: 'fractions',
-      name: 'Introduction aux fractions',
+      name: 'Introduction aux fractions - provisions de voyage',
+      tags: ['mathematics', 'sharing'],
+      conceptPool: [{ conceptId: 'fraction', baseRate: 0.04 }, { conceptId: 'numerator', baseRate: 0.03 }, { conceptId: 'denominator', baseRate: 0.03 }],
       chapters: [
         { id: 'discover', name: 'Découvrir', roundCount: 3 },
         { id: 'understand', name: 'Comprendre', roundCount: 3 },
       ],
       conceptIds: ['fraction', 'numerator', 'denominator'],
     },
-    concepts: [
-      { id: 'fraction', name: 'Fraction' },
-      { id: 'numerator', name: 'Numérateur' },
-      { id: 'denominator', name: 'Dénominateur' },
-    ],
+    concepts: structuredClone(conceptCatalog),
   };
 }

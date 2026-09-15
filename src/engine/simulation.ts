@@ -1,3 +1,4 @@
+import { Concepts, initializeConcepts } from '../systems/Concepts.js';
 import { TargetingSystem } from '../systems/TargetingSystem.js';
 import { RelationIndex } from '../systems/RelationIndex.js';
 import { emptyDebugMetrics,recordTick,eventPriority } from './diagnostics.js';
@@ -60,6 +61,7 @@ export class Simulation {
     const errors = validateScenario(scenario);
     if (errors.length) throw new Error(errors.join('\n'));
     this.scenario = structuredClone(scenario);
+    this.scenario.students.filter(s => s.present !== false).forEach(initializeConcepts);
     this.absentStudents = this.scenario.students.filter(s => s.present === false);
     const activeIds = new Set(this.scenario.students.filter(s => s.present !== false).map(s => s.id));
     this.absentRelations = this.scenario.classRelations?.links.filter(l => !activeIds.has(l.from) || !activeIds.has(l.to)) ?? [];
@@ -215,7 +217,7 @@ export class Simulation {
         for (const student of this.scenario.students) {
           if (!student.progression) continue;
           const result = this.lessonResults.find(r => r.studentId === student.id)!;
-          const settled = settleProgression(student, this.history, result.understanding);
+          const settled = settleProgression(student, this.history, result.understanding, { service: new Concepts(this.scenario.concepts), context: { lesson: this.scenario.lesson, teacher: this.teacher }, random: this.random });
           result.progression = settled.result;
           progressionEvents.push(...settled.events);
         }

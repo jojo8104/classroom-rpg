@@ -1,3 +1,4 @@
+import type { Concepts, DiscoveryContext } from '../systems/Concepts.js';
 import type { Student } from '../domain.js';
 import type { GameEvent, GameEventPayload } from '../events.js';
 import { abilities, specializations, type AbilityId, type SpecializationId } from '../data/abilities.js';
@@ -43,7 +44,7 @@ export function selectSpecialization(student: Student, id: SpecializationId): Ga
 }
 // Le bilan parcourt une seule fois les événements sources. Les événements dérivés
 // (concentration, effets temporaires, moral, relations) ne sont jamais récompensés deux fois.
-export function settleProgression(student: Student, history: readonly GameEvent[], understanding: number): { result: ProgressionResult; events: GameEventPayload[] } {
+export function settleProgression(student: Student, history: readonly GameEvent[], understanding: number, concepts?: { service: Concepts; context: Omit<DiscoveryContext, 'student' | 'conceptId' | 'baseRate' | 'lessonProgress'>; random: { next(): number } }): { result: ProgressionResult; events: GameEventPayload[] } {
   const p = student.progression!;
   const usage = emptyUsage(), counts: Partial<Record<RewardKind, number>> = { participation: 1 };
   const add = (kind: RewardKind) => { counts[kind] = (counts[kind] ?? 0) + 1; };
@@ -65,7 +66,7 @@ export function settleProgression(student: Student, history: readonly GameEvent[
   const rewards: ProgressionResult['rewards'] = {};
   for (const key of Object.keys(progressionRules.rewards) as RewardKind[]) {
     const value = Math.min(counts[key] ?? 0, progressionRules.caps[key]) * progressionRules.rewards[key];
-    if (value) rewards[key] = value;
+    if (value) rewards[key] = Math.round(value * (concepts?.service.learningMultiplier(student, concepts.context.lesson.tags ?? []) ?? 1));
   }
   const xpGained = Object.values(rewards).reduce((a,b) => a+b, 0), beforeLevel = p.level;
   const events: GameEventPayload[] = [];
@@ -82,5 +83,6 @@ export function settleProgression(student: Student, history: readonly GameEvent[
     }
   }
   if (beforeLevel < progressionRules.specializationLevel && p.level >= progressionRules.specializationLevel) events.push({ type: 'SPECIALIZATION_AVAILABLE', studentId: student.id, suggestions: specializationTrends(student) });
+  if (concepts) events.push(...concepts.service.attemptDiscoveries({ ...concepts.context, student, lessonProgress: understanding }, xpGained, concepts.random));
   return { result: { xpGained, beforeLevel, afterLevel: p.level, xp: p.xp, rewards, unlockedAbilities, usage }, events };
 }

@@ -1,3 +1,4 @@
+import { initializeConcepts } from './Concepts.js';
 import { migratePreparationSave } from './PlanMigration.js';
 import type { PrototypeScenario } from '../domain.js';
 import type { ClassroomLayout, ClassroomPlans } from '../models/ClassroomLayout.js';
@@ -31,6 +32,7 @@ export class ClassPreparation {
         this.message = original.plans.currentLayout.rows!==scenario.classroom.rows || original.plans.currentLayout.columns!==scenario.classroom.columns ? 'Classe agrandie : places, verrous et progrès précédents conservés.' : 'Placement et élèves restaurés.';
       }
     } catch { this.message = 'Sauvegarde indisponible ou incompatible : disposition initiale restaurée.'; }
+    scenario.students.forEach(initializeConcepts);
     this.system = new ClassroomLayoutSystem(this.plans.currentLayout);
     this.sync();
   }

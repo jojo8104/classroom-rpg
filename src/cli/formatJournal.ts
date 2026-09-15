@@ -8,6 +8,7 @@ export function formatJournal(scenario: PrototypeScenario, result: SimulationRes
   const lines: string[] = [];
   for (const event of result.events) {
     switch (event.type) {
+      case 'concept_discovered': lines.push(name(event.studentId) + ' : Concept découvert - ' + (scenario.concepts.find(c => c.id === event.conceptId)?.name ?? event.conceptId)); break;
       case 'ABILITY_USED': lines.push(`  ${name(event.studentId)} utilise ${event.abilityId} : ${event.effective ? 'effet utile' : 'sans effet'}`); break;
       case 'XP_GAINED': lines.push(`${name(event.studentId)} +${event.amount} XP : ` + Object.entries(event.rewards).map(([k,v]) => `${rewardLabels[k as keyof typeof rewardLabels]} +${v}`).join(' · ')); break;
       case 'STUDENT_LEVEL_UP': lines.push(`${name(event.studentId)} niveau ${event.oldLevel} → ${event.newLevel}`); break;
