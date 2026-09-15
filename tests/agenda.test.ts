@@ -61,7 +61,7 @@ describe('Roadmap 10 — séances, temps et sauvegarde', () => {
     expect(a.sessions[0]).toMatchObject({ slotId: a.slots[2]!.id, type: 'revision' });
     a.remove(first.id); expect(a.sessions).toHaveLength(1);
     expect(curriculum).toEqual(original);
-    expect(Object.keys(a.sessions[0]!)).toEqual(['id', 'slotId', 'lessonId', 'type', 'status']);
+    expect(Object.keys(a.sessions[0]!)).toEqual(['id', 'slotId', 'lessonId', 'type', 'sessionType', 'status']);
   });
   it('refuse conflits, références cassées et créneaux non scolaires sans mutation', () => {
     const a = new Agenda(alternate(), curriculum); a.place(a.slots[0]!.id, lessonId, 'lecture'); const before = a.snapshot;
@@ -75,9 +75,9 @@ describe('Roadmap 10 — séances, temps et sauvegarde', () => {
     expect(() => a.remove(session.id)).toThrow(); expect(() => a.place(session.slotId, lessonId, 'exercise')).toThrow();
     expect(() => a.consume(session.id)).toThrow(); a.skip(); expect(a.snapshot.cursor).toBe(2);
   });
-  it('planifie les devoirs sans inventer leur résolution ni consommer du temps', () => {
+  it('résout les devoirs sans consommer de créneau scolaire', () => {
     const a = new Agenda(alternate(), curriculum); a.place(a.currentSlot!.id, lessonId, 'homework');
-    expect(() => a.nextSession()).toThrow(/différée/); expect(a.snapshot.cursor).toBe(0);
+    const session = a.nextSession(); a.consume(session.id); expect(a.snapshot.cursor).toBe(0); expect(a.sessions[0]!.status).toBe('completed');
   });
   it('restaure configuration, séances et temps à côté des sauvegardes précédentes', () => {
     const disk = storage(), scenario = createPrototype(), preparation = new ClassPreparation(scenario, disk);

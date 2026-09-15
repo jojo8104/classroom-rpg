@@ -42,7 +42,7 @@ describe('Programme et séances atomiques', () => {
     expect(result.nextLessonStudents[0]!.lessonMastery![scenario.lesson.id]).toBe(37);
     expect(result.events.some(e => e.type === 'concept_discovered')).toBe(false);
     scenario.activity!.teachingMode = 'homework';
-    expect(() => new Simulation(scenario, 42)).toThrow('différée');
+    expect(new Simulation(scenario, 42).runToCompletion().teacher.patience).toBeLessThan(scenario.teacher.patience);
   });
   it('préserve les sauvegardes et accepte les anciennes sans maîtrise', () => {
     let raw = '';

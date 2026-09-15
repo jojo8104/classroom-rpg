@@ -1,3 +1,4 @@
+import { estimateMastery } from '../systems/LearningMemory.js';
 import type { PrototypeScenario, Student } from '../domain.js';
 import { personalityLabels, personalityTraits } from '../engine/social.js';
 import { knowledgeOf } from '../systems/PlacementEvaluationSystem.js';
@@ -13,10 +14,10 @@ export function renderStudentCard(root: HTMLElement, student: Student, scenario:
   paragraph(root, scenario.archetypes.find(a => a.id === student.archetypeId)?.name ?? student.archetypeId);
   paragraph(root, personalityTraits.filter(t => (student.personality?.[t] ?? 0) >= 0.5).map(t => personalityLabels[t]).join(' · ') || 'Personnalité discrète');
   paragraph(root, `Moral ${student.morale} · Concentration ${student.concentration} · Discipline ${student.discipline}`);
-  paragraph(root, 'Acquis utiles pour la leçon', 'h3');
+  paragraph(root, estimateMastery(student, scenario.lesson.id, scenario.teacher, scenario.activity?.day).label, 'h3');
   for (const conceptId of scenario.lesson.conceptIds) {
     const value = knowledgeOf(student, conceptId);
-    paragraph(root, `${scenario.concepts.find(c => c.id === conceptId)?.name ?? conceptId} : ${value === null ? 'non évalué' : value + ' %'}`);
+    paragraph(root, `${scenario.concepts.find(c => c.id === conceptId)?.name ?? conceptId} : ${value === null ? 'non évalué' : value < 35 ? 'fragiles' : value < 70 ? 'en consolidation' : 'solides'}`);
   }
   paragraph(root, 'Concepts découverts', 'h3');
   paragraph(root, student.concepts?.acquired.map(id => scenario.concepts.find(c => c.id === id)?.name ?? id).join(', ') || 'Aucun pour le moment');

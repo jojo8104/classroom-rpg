@@ -1,5 +1,7 @@
 // Les définitions persistantes sont séparées de l'état temporaire d'une séance.
 export interface Student {
+  learningMemory?: Record<string, import('./systems/LearningMemory.js').LearningMemory>;
+  recentSessionTypes?: SessionType[];
   /** Maîtrise persistante par ID de leçon ; absente dans les anciennes sauvegardes. */
   lessonMastery?: Record<string, number>;
   concepts?: { acquired: string[]; progress: Record<string, number> };
@@ -119,7 +121,8 @@ export interface Topic {
 /** Topic est le nom historique du chapitre. */
 export type Chapter = Topic;
 export type TeachingMode = string;
-export interface LessonActivity { lessonId: string; teachingMode: TeachingMode }
+export type SessionType = 'lecture' | 'exercise' | 'revision' | 'assessment' | 'homework';
+export interface LessonActivity { lessonId: string; teachingMode: TeachingMode; sessionType?: SessionType; difficulty?: number; day?: number }
 export interface StudentLessonProgress { studentId: string; lessonId: string; mastery: number }
 export interface Curriculum { programs: Program[]; subjects: Subject[]; chapters: Chapter[]; lessons: Lesson[] }
 export interface LessonSession extends LessonActivity { round: number; state: import('./engine/simulation.js').LessonState; students: StudentLessonState[] }

@@ -112,11 +112,11 @@ export class ClassroomRenderer {
             }
         }
     }
-    render(states, progress, selected) {
+    render(states, progress, selected, observations) {
         for (const [id, desk] of this.desks) {
             const state = states.get(id);
             if (state)
-                desk.render(state, progress.get(id) ?? state.lessonUnderstanding, selected === id);
+                desk.render(state, progress.get(id) ?? state.lessonUnderstanding, selected === id, observations?.get(id));
         }
     }
     setQuality(quality) {

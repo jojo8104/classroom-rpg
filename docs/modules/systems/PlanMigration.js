@@ -6,6 +6,8 @@ export function migratePreparationSave(saved, scenario) {
     if (saved?.plans?.version !== 1 || !Array.isArray(saved.students) || saved.students.some(s => !scenario.students.some(current => current.id === s.id)) || validateLayout(saved.plans.currentLayout, saved.students).length || validateLayout(saved.plans.defaultLayout, saved.students).length)
         throw new Error('Sauvegarde incompatible.');
     const oldScenario = { ...scenario, students: saved.students, classroom: { ...scenario.classroom, currentLayout: saved.plans.currentLayout } };
+    if (saved.teacher)
+        oldScenario.teacher = saved.teacher;
     if (saved.classRelations)
         oldScenario.classRelations = saved.classRelations;
     else
@@ -44,7 +46,7 @@ export function migratePreparationSave(saved, scenario) {
     const links = new Map((scenario.classRelations?.links ?? []).map(l => [JSON.stringify([l.from, l.to]), structuredClone(l)]));
     for (const link of saved.classRelations?.links ?? [])
         links.set(JSON.stringify([link.from, link.to]), structuredClone(link));
-    return { students, classRelations: { links: [...links.values()] }, plans: { version: 1, currentLayout: migrate(saved.plans.currentLayout), defaultLayout: migrate(saved.plans.defaultLayout),
+    return { ...(saved.teacher ? { teacher: structuredClone(saved.teacher) } : {}), students, classRelations: { links: [...links.values()] }, plans: { version: 1, currentLayout: migrate(saved.plans.currentLayout), defaultLayout: migrate(saved.plans.defaultLayout),
             savedLayouts: Object.fromEntries(Object.entries(saved.plans.savedLayouts ?? {}).map(([name, layout]) => { if (validateLayout(layout, saved.students).length)
                 throw new Error('Plan nommé invalide.'); return [name, migrate(layout)]; })) } };
 }

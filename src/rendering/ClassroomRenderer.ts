@@ -80,9 +80,9 @@ export class ClassroomRenderer {
       }
     }
   }
-  render(states: Map<string, StudentLessonState>, progress: Map<string, number>, selected: string) {
+  render(states: Map<string, StudentLessonState>, progress: Map<string, number>, selected: string, observations?: Map<string, string>) {
     for (const [id, desk] of this.desks) {
-      const state = states.get(id); if (state) desk.render(state, progress.get(id) ?? state.lessonUnderstanding, selected === id);
+      const state = states.get(id); if (state) desk.render(state, progress.get(id) ?? state.lessonUnderstanding, selected === id, observations?.get(id));
     }
   }
   setQuality(quality: GraphicsQuality) {

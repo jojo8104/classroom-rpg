@@ -3,7 +3,7 @@ export const teachingModes = [
     { id: 'lecture', name: 'Cours magistral', resolution: 'classroom', masteryGain: consolidate, conceptMultiplier: 1 },
     { id: 'exercise', name: 'Exercices', resolution: 'classroom', masteryGain: consolidate, conceptMultiplier: 1 },
     { id: 'homework', name: 'Devoirs', resolution: 'deferred', masteryGain: consolidate, conceptMultiplier: 1 },
-    { id: 'revision', name: 'Révision', resolution: 'classroom', masteryGain: consolidate, conceptMultiplier: 1 },
+    { id: 'revision', name: 'Révision', resolution: 'classroom', masteryGain: (before, understanding) => consolidate(before, understanding) * 0.08, conceptMultiplier: 2 },
     { id: 'assessment', name: 'Évaluation', resolution: 'classroom', masteryGain: () => 0, conceptMultiplier: 0 },
 ];
 export function getTeachingMode(id) {

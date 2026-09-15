@@ -1,3 +1,5 @@
+import { estimateMastery, erodeLearning } from '../systems/LearningMemory.js';
+import type { SessionType } from '../domain.js';
 import { Agenda } from '../systems/Agenda.js';
 import { AgendaView } from './AgendaView.js';
 import { defaultCalendarConfig } from '../data/calendarConfig.js';
@@ -33,6 +35,12 @@ let storage: PlanStorage | undefined;
 try { storage = window.localStorage; } catch { /* Le jeu reste disponible sans stockage. */ }
 const preparation = new ClassPreparation(scenario, storage);
 const agenda = new Agenda(defaultCalendarConfig, curriculum, storage, `classroom-rpg:${scenario.classroom.id}:agenda:v1`);
+const syncLearningTime = (save = true) => {
+  erodeLearning(scenario.students, agenda.currentDay);
+  scenario.activity = { ...(scenario.activity ?? { lessonId: scenario.lesson.id, teachingMode: 'lecture' }), day: agenda.currentDay };
+  if (save) preparation.save();
+};
+syncLearningTime(false);
 let activeSessionId: string | undefined;
 let agendaView: AgendaView | undefined;
 let gameState: typeof GAME_STATE[keyof typeof GAME_STATE] = GAME_STATE.CLASS_PREPARATION;
@@ -62,7 +70,7 @@ for(const direction of [-1,1]) el(direction<0 ? 'scroll-left' : 'scroll-right').
 function renderMetrics() {
   const states=gameState===GAME_STATE.CLASS_PREPARATION ? scenario.students.filter(s=>s.present!==false).map(s=>({studentId:s.id,lessonUnderstanding:lessonProgress(s, scenario.lesson.id).mastery,concentration:s.concentration,morale:s.morale,effects:[],progress:0,missedRounds:0})) : [...shownStates.values()];
   const m=getClassMetrics(scenario.students,states);
-  metricsPanel.textContent=`${m.count} présents · ${gameState===GAME_STATE.CLASS_PREPARATION ? 'Acquis' : 'Compréhension'} ${m.averageProgress.toFixed(0)} % · Concentration ${m.averageConcentration.toFixed(0)} · Moral ${m.averageMorale.toFixed(0)} · Discipline ${m.averageDiscipline.toFixed(0)} | En difficulté ${m.distribution.struggling} · Partiels ${m.distribution.partial} · Acquis ${m.distribution.acquired} · Maîtrisés ${m.distribution.mastered}`;
+  metricsPanel.textContent = `${m.count} présents · Concentration ${m.averageConcentration.toFixed(0)} · Moral ${m.averageMorale.toFixed(0)} · Discipline ${m.averageDiscipline.toFixed(0)} · Consultez les estimations individuelles.`;
 }
 const restart = el<HTMLFormElement>('restart');
 const log = el<HTMLOListElement>('log');
@@ -77,18 +85,20 @@ function renderStudents() {
   renderMetrics();
   const matrixOpen = el('student-detail').querySelector<HTMLDetailsElement>('#relations-debug')?.open ?? false;
   const extendedOpen = el('student-detail').querySelector<HTMLDetailsElement>('.extended-student')?.open ?? false;
-  renderer?.render(shownStates, shown, detailOpen ? selected : '');
+  const persistent = simulation.persistentStudents;
+  const observations = scenario.students.map(student => ({ id: student.id, ...estimateMastery(persistent.find(s => s.id === student.id) ?? student, scenario.lesson.id, shownTeacher, agenda.currentDay) }));
+  renderer?.render(shownStates, new Map(observations.map(e => [e.id, (e.low + e.high) / 2])), detailOpen ? selected : '', new Map(observations.map(e => [e.id, e.label])));
   el('student-detail').hidden = !detailOpen;
   if (!detailOpen) return;
   const student = scenario.students.find(s => s.id === selected)!;
   const role = scenario.archetypes.find(a => a.id === student.archetypeId)!.name;
   const state = shownStates.get(selected)!;
-  el('student-detail').innerHTML = `<h2>${student.name}</h2><span class="role ${student.archetypeId}">${role}</span><div class="understanding">${shown.get(selected)} %</div><p>Compréhension de la leçon</p><dl>${[['Intelligence',student.intelligence],['Discipline',student.discipline],['Concentration (HP)',state.concentration],['Moral',state.morale]].map(([name,value]) => `<div><dt>${name}</dt><dd>${value}</dd></div>`).join('')}</dl><h3>Progression de la leçon</h3><p>${state.progress} / ${scenario.lesson.requiredProgress}<br><small>${state.missedRounds} round(s) manqué(s)</small></p>`;
+  el('student-detail').innerHTML = `<h2>${student.name}</h2><span class="role ${student.archetypeId}">${role}</span><div class="understanding">${estimateMastery(simulation.persistentStudents.find(s => s.id === selected)!, scenario.lesson.id, shownTeacher, agenda.currentDay).label}</div><p>Observation du professeur</p><dl>${[['Intelligence',student.intelligence],['Discipline',student.discipline],['Concentration (HP)',state.concentration],['Moral',state.morale]].map(([name,value]) => `<div><dt>${name}</dt><dd>${value}</dd></div>`).join('')}</dl><h3>Progression de la leçon</h3><p>${estimateMastery(simulation.persistentStudents.find(s => s.id === selected)!, scenario.lesson.id, shownTeacher, agenda.currentDay).feedback}<br><small>${state.missedRounds} round(s) manqué(s)</small></p>`;
   const mastery = lessonMastery(state);
   const morale = moraleMultiplier(effectiveStats(student, state).morale);
   const chances = moraleChances(morale, scenario.interactionRules!);
   const behaviorInfo = document.createElement('p');
-  behaviorInfo.textContent = `Maîtrise de la leçon : ${mastery} %. Moral effectif : ×${morale.toFixed(2)}. Occasion positive : ${Math.round(chances.positive * 10000) / 100} % · risque négatif : ${Math.round(chances.negative * 10000) / 100} %. Deux tirages indépendants.`;
+  behaviorInfo.textContent = `Moral effectif : ×${morale.toFixed(2)}. Occasion positive : ${Math.round(chances.positive * 10000) / 100} % · risque négatif : ${Math.round(chances.negative * 10000) / 100} %. Deux tirages indépendants.`;
   el('student-detail').append(behaviorInfo);
   if (reactionFeedback.has(selected)) {
     const last = document.createElement('p'); last.textContent = reactionFeedback.get(selected)!;
@@ -111,7 +121,7 @@ function renderStudents() {
       }
       const requirement = masteryRequirement(ability, scenario.interactionRules!);
       description.textContent += requirement.minimum > 0
-        ? ` Maîtrise requise : ${requirement.minimum} %${ability.effect === 'COMBINED_ATTACK' ? ' chez les deux élèves' : ''}${mastery < requirement.minimum ? ' · pas encore acquise' : ''}.`
+        ? ` Maîtrise requise : ${requirement.minimum} %${ability.effect === 'COMBINED_ATTACK' ? ' chez les deux élèves' : ''}.`
         : ' Accessible sans maîtrise minimale.';
       el('student-detail').append(description);
     }
@@ -258,7 +268,7 @@ function syncControls() {
   renderMetrics(); speed.disabled=busy;
   if (gameState === GAME_STATE.CLASS_PREPARATION) {
     advance.disabled = preparation.system.validateLayout(scenario.students).length > 0;
-    advance.textContent = 'Lancer la leçon';
+    advance.textContent = 'Lancer la séance planifiée';
     seed.disabled = false; restart.querySelector('button')!.disabled = false;
     restart.querySelector('button')!.textContent = 'Préparation de classe';
     el('phase').textContent = 'Préparation de classe';
@@ -278,11 +288,14 @@ function syncControls() {
     advance.textContent = 'Choisissez une intervention';
   } else if (simulation.state === 'LESSON_FINISHED') {
     gameState = GAME_STATE.LESSON_RESULT;
-    const result = simulation.getResult();
-    scenario.students = result.nextLessonStudents;
-    if (result.classRelations) scenario.classRelations = result.classRelations;
-    preparation.save();
-    if (activeSessionId) { agenda.consume(activeSessionId); activeSessionId = undefined; agendaView?.render(); }
+    if (activeSessionId) {
+      const result = simulation.getResult();
+      scenario.students = result.nextLessonStudents;
+      if (result.classRelations) scenario.classRelations = result.classRelations;
+      scenario.teacher = result.teacher;
+      preparation.save();
+      agenda.consume(activeSessionId); activeSessionId = undefined; syncLearningTime(); agendaView?.render();
+    }
     el('debug-stats').textContent=JSON.stringify(simulation.debugMetrics,null,2);
     restart.querySelector('button')!.textContent = 'Préparer la prochaine leçon';
     el('phase').textContent = 'Leçon terminée'; el('status').textContent = 'Chaque élève a son résultat. Sélectionnez un pupitre pour le consulter.';
@@ -313,7 +326,7 @@ function renderRoundResult(before: StudentLessonState[], events: GameEvent[]) {
   const best = Math.max(...summary.map(row => row.progress));
   if (best > 0) {
     const item = document.createElement('p');
-    item.textContent = `Plus forte progression : ${summary.filter(row => row.progress === best).map(row => studentName(row.studentId)).join(', ')} (+${best} points de compréhension).`;
+    item.textContent = `Plus forte progression : ${summary.filter(row => row.progress === best).map(row => studentName(row.studentId)).join(', ')}.`;
     el('round-attention').append(item);
   }
   el('round-rows').replaceChildren();
@@ -325,7 +338,7 @@ function renderRoundResult(before: StudentLessonState[], events: GameEvent[]) {
     const received = entry.received;
     const interactions = [received.support ? `${received.support} aide(s)` : '', received.protection ? `${received.protection} protection(s)` : '',
       received.combo ? `${received.combo} combo(s)` : '', received.disruptionDamage ? `Perturbations : −${received.disruptionDamage} concentration` : ''].filter(Boolean).join(' · ') || 'Aucune';
-    for (const value of [ `${state.lessonUnderstanding} % (${delta(state.lessonUnderstanding - previous.lessonUnderstanding)})`, `${state.concentration} (${delta(state.concentration - previous.concentration)})`, `${state.morale} (${delta(state.morale - previous.morale)})`, entry.alerts.join(' · ') || (entry.completed ? 'Leçon acquise' : 'En apprentissage'), interactions]) {
+    for (const value of [ estimateMastery(simulation.persistentStudents.find(s => s.id === state.studentId)!, scenario.lesson.id, shownTeacher, agenda.currentDay).label, `${state.concentration} (${delta(state.concentration - previous.concentration)})`, `${state.morale} (${delta(state.morale - previous.morale)})`, entry.alerts.join(' · ') || (entry.completed ? 'Travail terminé' : 'En apprentissage'), interactions]) {
       const cell = document.createElement('td'); cell.textContent = value; row.append(cell);
     }
     el('round-rows').append(row);
@@ -353,7 +366,7 @@ function feedback(studentId: string, text: string) {
   el(studentId).querySelector('.seat-feedback')!.textContent = text;
 }
 async function showEvents(events: GameEvent[]) {
-  const playback=speed.value as SimulationSpeed;
+  const playback: SimulationSpeed = simulation.individual && speed.value !== 'instant' ? 'compact' : speed.value as SimulationSpeed;
   if (playback === 'instant') renderer?.reset();
   for (const event of visualEvents(events,playback)) {
     if (playback !== 'instant') renderer?.handleEvent(event);
@@ -366,7 +379,7 @@ async function showEvents(events: GameEvent[]) {
       for (const result of event.results) {
         const p = result.progression; if (!p) continue;
         const row = document.createElement('p');
-        row.textContent = `${studentName(result.studentId)} · maîtrise ${lessonProgress(simulation.persistentStudents.find(s => s.id === result.studentId)!, scenario.lesson.id).mastery} % · compréhension ${result.understanding} % · +${p.xpGained} XP · niveau ${p.beforeLevel} → ${p.afterLevel} · total ${p.xp} XP`;
+        row.textContent = `${studentName(result.studentId)} · ${estimateMastery(simulation.persistentStudents.find(s => s.id === result.studentId)!, scenario.lesson.id, shownTeacher, agenda.currentDay).label} · +${p.xpGained} XP · niveau ${p.beforeLevel} → ${p.afterLevel} · total ${p.xp} XP`;
         const details = document.createElement('small'); details.textContent = Object.entries(p.rewards).map(([k,v]) => `${rewardLabels[k as keyof typeof rewardLabels]} +${v}`).join(' · ');
         row.append(document.createElement('br'), details);
         if (p.unlockedAbilities.length) row.append(document.createElement('br'), 'Compétences apprises : ' + p.unlockedAbilities.map(id => abilityCatalog.find(a => a.id === id)!.name).join(', '));
@@ -375,6 +388,10 @@ async function showEvents(events: GameEvent[]) {
         panel.append(row);
       }
       renderStudents();
+    } else if (event.type === 'LEARNING_OBSERVED') {
+      note(`${studentName(event.studentId)} · ${event.label} · ${event.feedback}`);
+    } else if (event.type === 'concept_reactivated') {
+      note(`${studentName(event.studentId)} réactive ${scenario.concepts.find(c => c.id === event.conceptId)?.name ?? event.conceptId}.`);
     } else if (event.type === 'XP_GAINED') {
       note(`${studentName(event.studentId)} gagne ${event.amount} XP.`);
     } else if (event.type === 'STUDENT_LEVEL_UP') {
@@ -386,7 +403,7 @@ async function showEvents(events: GameEvent[]) {
     } else if (event.type === 'ROUND_STARTED') {
       reactionFeedback.clear(); reactionsUsed.clear(); renderStudents();
     } else if (event.type === 'REACTION_EVALUATED' && event.reason !== 'eligible') {
-      const reason = event.reason === 'mastery' ? `maîtrise insuffisante (${event.mastery} %, cible ${event.targetMastery} %, minimum ${event.minimum} %)`
+      const reason = event.reason === 'mastery' ? 'acquis insuffisants pour cette réaction'
         : event.reason === 'locked' ? 'compétence verrouillée' : event.reason === 'abilityLimit' ? 'limite d’utilisation atteinte' : event.reason === 'relation' ? 'relation insuffisante' : event.reason === 'noEffect' ? 'aucun effet utile dans cette situation' : 'aucune occasion positive au tirage de moral';
       reactionFeedback.set(event.sourceId, `Dernière occasion avec ${studentName(event.targetId)} : ${reason}.`);
       renderStudents();
@@ -437,8 +454,8 @@ async function showEvents(events: GameEvent[]) {
       el('status').textContent = `${studentName(event.targetId)} et ${studentName(event.sourceId)} attaquent ensemble !`;
       note(el('status').textContent!); renderStudents();
     } else if (event.type === 'COMBINED_ATTACK_RESOLVED') {
-      feedback(event.targetId, `Combo : +${event.appliedProgress} points`);
-      note(`Combo : ${event.activeGain} + ${event.partnerGain} + ${event.synergyGain} de synergie. ${studentName(event.targetId)} gagne ${event.appliedProgress} points de leçon (potentiel ${event.potentialGain}).`);
+      feedback(event.targetId, 'Combo : avancée observée');
+      note(`${studentName(event.targetId)} avance grâce au travail combiné avec ${studentName(event.sourceId)}.`);
     } else if (event.type === 'STUDENT_ACTION') {
       clearActionFeedback();
       el(event.actorId).classList.add('active');
@@ -479,7 +496,7 @@ async function showEvents(events: GameEvent[]) {
       note(`La leçon riposte sur ${studentName(event.studentId)} : −${event.damage} HP.`);
     } else if (event.type === 'UNDERSTANDING_CHANGED') {
       shown.set(event.studentId, event.after); renderStudents();
-      feedback(event.studentId, `+${event.amount} compréhension`);
+      feedback(event.studentId, event.amount > 0 ? 'Avancée observée' : 'Hésitation');
     } else if (event.type === 'EFFECT_APPLIED') {
       feedback(event.targetId, `+${event.amount} concentration`);
       el('status').textContent = `${studentName(event.sourceId)} aide ${studentName(event.targetId)} : +${event.amount} HP de concentration.`;
@@ -492,7 +509,7 @@ async function showEvents(events: GameEvent[]) {
       shown = new Map(event.students.map(s => [s.studentId, s.lessonUnderstanding])); renderStudents();
       el<HTMLProgressElement>('lesson-progress').value = event.round;
     }
-    if (playback === 'compact' && event.type !== 'ROUND_ENDED') await new Promise(resolve => setTimeout(resolve, 700));
+    if (playback === 'compact' && !['ROUND_ENDED','LEARNING_OBSERVED','concept_reactivated'].includes(event.type)) await new Promise(resolve => setTimeout(resolve, 700));
     if (playback === 'detailed' && (event.type === 'COMBINED_ATTACK_STARTED' || event.type === 'COMBINED_ATTACK_RESOLVED' || event.type === 'REACTION_TRIGGERED' || event.type === 'UNDERSTANDING_CHANGED' || event.type === 'EFFECT_APPLIED' || event.type === 'EXTRA_ACTION_CREATED' || event.type === 'CONCENTRATION_CHANGED' && event.reason !== 'support' || event.type === 'STUDENT_DROPPED_OUT')) {
       // Conserver le temps de lecture même lorsque les mouvements sont désactivés.
       await new Promise(resolve => setTimeout(resolve, event.type === 'COMBINED_ATTACK_STARTED' || event.type === 'REACTION_TRIGGERED' || event.type === 'EFFECT_APPLIED' ? 1100 : 650));
@@ -528,11 +545,11 @@ function startLesson() {
   if (!restart.reportValidity()) return;
   try {
     const session = agenda.nextSession();
-    const selectedScenario = selectLessonActivity(scenario, curriculum, { lessonId: session.lessonId, teachingMode: session.type });
+    const selectedScenario = selectLessonActivity(scenario, curriculum, { lessonId: session.lessonId, teachingMode: session.type, sessionType: session.type as SessionType, ...(session.difficulty === undefined ? {} : { difficulty: session.difficulty }), day: agenda.currentDay });
     const nextSimulation = new Simulation({ ...preparation.prepareLesson(), program: selectedScenario.program!, subject: selectedScenario.subject, topic: selectedScenario.topic, lesson: selectedScenario.lesson, activity: selectedScenario.activity! }, Number(seed.value), createClassroomActionRules(scenario.students.filter(s=>s.present!==false).length));
     Object.assign(scenario, { program: selectedScenario.program, subject: selectedScenario.subject, topic: selectedScenario.topic, lesson: selectedScenario.lesson, activity: selectedScenario.activity });
     simulation = nextSimulation; activeSessionId = session.id;
-    totalRounds = scenario.lesson.roundCount;
+    totalRounds = simulation.roundCount;
     el<HTMLProgressElement>('lesson-progress').max = totalRounds;
     curriculumPath.textContent = `${scenario.program?.name ?? ''} / ${scenario.subject.name} / ${scenario.topic.name} / ${scenario.lesson.name}`;
     lessonStats.textContent = `Complexité ${scenario.lesson.complexity} · Pression ${scenario.lesson.pressure} · Objectif individuel ${scenario.lesson.requiredProgress}`;
@@ -560,6 +577,19 @@ function startLesson() {
     const option = document.createElement('option'); option.value = student.id; option.textContent = student.name; targetSelect.append(option);
   }
   if (selected) renderStudents(); syncControls();
+  if (simulation.individual) void runIndividualSession();
+}
+async function runIndividualSession() {
+  busy = true; syncControls();
+  try {
+    while (simulation.state !== 'LESSON_FINISHED') {
+      const before = simulation.studentStates;
+      await showEvents(simulation.resolveRound()); completedRounds++;
+      renderRoundResult(before, simulation.events);
+      simulation.acknowledgeRoundResult();
+      await showEvents(simulation.applyTeacherAction({ kind: 'PASS' }));
+    }
+  } finally { busy = false; syncControls(); renderStudents(); }
 }
 function enterPreparation() {
   modeSelect.disabled = true;
@@ -580,7 +610,7 @@ const modeSelect = document.createElement('select');
 modeSelect.setAttribute('aria-label', 'Mode pédagogique');
 for (const id of scenario.lesson.availableTeachingModes ?? ['lecture']) {
   const mode = getTeachingMode(id), option = document.createElement('option');
-  option.value = id; option.disabled = mode.resolution === 'deferred';
+  option.value = id; option.disabled = false;
   option.textContent = mode.name + (option.disabled ? ' (différé, à venir)' : ''); modeSelect.append(option);
 }
 const curriculumPath = document.createElement('p'); curriculumPath.className = 'lesson-stats';
@@ -593,7 +623,7 @@ lessonStats.textContent = `Complexité ${scenario.lesson.complexity} · Pression
 document.querySelector('.board')!.append(lessonStats);
 const agendaRoot = document.createElement('section'); agendaRoot.id = 'agenda';
 document.querySelector('main')!.prepend(agendaRoot);
-agendaView = new AgendaView(agendaRoot, agenda, () => scenario.students, () => gameState === GAME_STATE.LESSON);
+agendaView = new AgendaView(agendaRoot, agenda, () => scenario.students, () => gameState === GAME_STATE.LESSON, () => scenario.teacher.pedagogy, () => { syncLearningTime(); enterPreparation(); });
 
 // Interface facultative : les navigateurs ordinaires n'ont pas ce registre.
 interface ModelContext {
@@ -618,11 +648,9 @@ if (context) {
             if (gameState === GAME_STATE.CLASS_PREPARATION || busy || simulation.state !== 'ROUND_READY') throw new Error('La leçon ne peut pas avancer maintenant.');
             await advanceLesson();
           }
-          return { phase: gameState === GAME_STATE.CLASS_PREPARATION ? gameState : simulation.state, busy, students: Object.fromEntries(shown) };
+          return { phase: gameState === GAME_STATE.CLASS_PREPARATION ? gameState : simulation.state, busy, students: Object.fromEntries(scenario.students.map(s => [s.id, estimateMastery(s, scenario.lesson.id, shownTeacher, agenda.currentDay)])) };
         },
       }, { signal: lifecycle.signal })).catch(() => {});
     } catch { /* Le jeu reste utilisable si le registre facultatif est indisponible. */ }
   }
 }
-
-

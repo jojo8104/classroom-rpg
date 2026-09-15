@@ -1,3 +1,4 @@
+import { sessionRules } from '../data/sessionRules.js';
 import { getTeachingMode } from '../data/teachingModes.js';
 const node = (tag, text = '') => {
     const element = document.createElement(tag);
@@ -9,14 +10,18 @@ export class AgendaView {
     agenda;
     students;
     locked;
+    pedagogy;
+    timeChanged;
     weekIndex = 0;
     editing;
     message = '';
-    constructor(root, agenda, students, locked) {
+    constructor(root, agenda, students, locked, pedagogy = () => 0, timeChanged = () => { }) {
         this.root = root;
         this.agenda = agenda;
         this.students = students;
         this.locked = locked;
+        this.pedagogy = pedagogy;
+        this.timeChanged = timeChanged;
         this.render();
     }
     render() {
@@ -42,8 +47,8 @@ export class AgendaView {
             return b;
         };
         const deadlineSlots = a.calendar.periods.find(p => p.id === week.periodId).weeks.flatMap(w => w.days.flatMap(d => d.slots));
-        const info = a.indicators(this.students(), deadlineSlots.at(-1)?.id);
-        this.root.append(node('p', `${info.remaining} créneaux restants · ${info.free} libres · ${info.unaddressed.length} leçons non abordées · ${info.insufficient.length} sous ${a.snapshot.config.masteryThreshold} % de maîtrise moyenne`));
+        const info = a.indicators(this.students(), deadlineSlots.at(-1)?.id, this.pedagogy());
+        this.root.append(node('p', `${info.remaining} créneaux restants · ${info.free} libres · ${info.unaddressed.length} leçons non abordées · ${info.estimates.filter(e => e.high < a.snapshot.config.masteryThreshold).length} leçons estimées en difficulté`));
         this.root.append(node('p', `${info.slotsBeforeDeadline} créneaux jusqu’à la fin de la période affichée. Marge minimale pour aborder le programme : ${info.minimumCoverageMargin} créneaux (hypothèse : une séance par leçon ; sans garantie de maîtrise).`));
         const current = a.currentSlot;
         const currentWeek = weeks.find(w => w.days.some(d => d.slots.some(s => s.id === current?.id)));
@@ -68,7 +73,7 @@ export class AgendaView {
             cell.className = `agenda-day ${day.status}`;
             cell.append(node('h3', day.name), node('p', `${{ school: 'Scolaire', holiday: 'Non scolaire', event: 'Événement' }[day.status]} · ${day.label}`));
             for (const slot of day.slots) {
-                const session = a.sessions.find(s => s.slotId === slot.id), row = node('div');
+                const session = a.sessions.find(s => s.slotId === slot.id && s.type !== 'homework'), row = node('div');
                 row.className = 'agenda-slot';
                 const lesson = a.curriculum.lessons.find(l => l.id === session?.lessonId);
                 const chapter = a.curriculum.chapters.find(c => c.id === lesson?.topicId);
@@ -81,17 +86,31 @@ export class AgendaView {
                     row.lastChild.onclick = () => { this.editing = session?.id; this.renderEditor(slot.id); };
                     if (session)
                         row.append(button('Supprimer', () => a.remove(session.id), this.locked()));
+                    const homework = a.sessions.find(s => s.slotId === slot.id && s.type === 'homework');
+                    if (homework)
+                        row.append(node('p', `Devoir hors classe · ${a.curriculum.lessons.find(l => l.id === homework.lessonId).name} · ${homework.status === 'completed' ? 'Réalisé' : 'Planifié'} · difficulté ${homework.difficulty ?? 50}`));
+                    if (!homework || homework.status === 'planned') {
+                        const edit = node('button', homework ? 'Modifier le devoir' : 'Ajouter un devoir hors classe');
+                        edit.type = 'button';
+                        edit.disabled = this.locked();
+                        edit.onclick = () => { this.editing = homework?.id; this.renderEditor(slot.id, 'homework'); };
+                        row.append(edit);
+                        if (homework)
+                            row.append(button('Supprimer le devoir', () => a.remove(homework.id), this.locked()));
+                    }
                 }
                 cell.append(row);
             }
             grid.append(cell);
         }
-        this.root.append(grid, button('Laisser passer le créneau courant vide', () => a.skip(), this.locked() || !current || a.sessions.some(s => s.slotId === current.id)));
+        this.root.append(grid, button('Laisser passer le créneau courant vide', () => { a.skip(); this.timeChanged(); }, this.locked() || !current || a.sessions.some(s => s.slotId === current.id && s.status === 'planned')));
         const mastery = node('details');
         mastery.append(node('summary', 'Maîtrise par leçon'));
-        for (const m of info.mastery)
-            mastery.append(node('p', `${a.curriculum.lessons.find(l => l.id === m.lessonId).name} : ${m.average.toFixed(1)} %${info.unaddressed.includes(m.lessonId) ? ' · Non abordée' : ''}`));
+        for (const m of info.estimates)
+            mastery.append(node('p', `${a.curriculum.lessons.find(l => l.id === m.lessonId).name} : environ ${m.low}–${m.high} %${info.unaddressed.includes(m.lessonId) ? ' · Non abordée' : ''}`));
         this.root.append(mastery);
+        for (const s of a.sessions.filter(s => s.type === 'homework' && s.status === 'completed'))
+            this.root.append(node('p', `Devoir réalisé · ${a.curriculum.lessons.find(l => l.id === s.lessonId).name} · ${sessionRules.homeworkMinutes} min de préparation hors classe`));
         const config = node('details');
         config.append(node('summary', 'Configuration de campagne'));
         config.append(node('p', 'Modifiable avant toute planification : semaines, périodes, jours travaillés, créneaux, vacances et jours particuliers. Les semaines des jours particuliers incluent les vacances.'));
@@ -103,7 +122,7 @@ export class AgendaView {
         config.append(field, button('Appliquer la configuration', () => a.configure(JSON.parse(field.value)), field.disabled));
         this.root.append(config);
     }
-    renderEditor(slotId) {
+    renderEditor(slotId, initialType = 'lecture') {
         this.root.querySelector('form')?.remove();
         const a = this.agenda, session = a.sessions.find(s => s.id === this.editing), form = node('form');
         form.className = 'agenda-editor';
@@ -119,20 +138,29 @@ export class AgendaView {
         if (session)
             lesson.value = session.lessonId;
         const modes = () => { type.replaceChildren(); for (const id of a.curriculum.lessons.find(l => l.id === lesson.value).availableTeachingModes ?? ['lecture']) {
-            const m = getTeachingMode(id), o = node('option', m.name + (m.resolution === 'deferred' ? ' (résolution à venir)' : ''));
+            const m = getTeachingMode(id), o = node('option', m.name + (m.resolution === 'deferred' ? ' (hors classe)' : ''));
             o.value = id;
             type.append(o);
         } };
-        lesson.onchange = modes;
+        const difficulty = node('input');
+        difficulty.type = 'number';
+        difficulty.min = '0';
+        difficulty.max = '100';
+        difficulty.value = String(session?.difficulty ?? 50);
+        difficulty.setAttribute('aria-label', 'Complexité de 0 à 100');
+        const help = node('p');
+        const describe = () => { difficulty.hidden = !['exercise', 'homework'].includes(type.value); help.textContent = type.value === 'homework' ? `Préparation : ${sessionRules.homeworkMinutes} min hors classe, ${sessionRules.homeworkPatience} Patience. Travail autonome, très dépendant de la Discipline.` : type.value === 'assessment' ? `Deux tours individuels, ${sessionRules.assessmentAuthority} Autorité, baisse de Moral. Observer sans enseigner.` : type.value === 'revision' ? 'Récupérer les acquis oubliés, protéger et réactiver les concepts liés.' : type.value === 'exercise' ? 'Complexité 0–100 : choisissez-la selon votre estimation des acquis.' : 'Acquérir de nouvelles connaissances ; observation limitée.'; };
+        type.onchange = describe;
+        lesson.onchange = () => { modes(); describe(); };
         modes();
-        if (session)
-            type.value = session.type;
+        type.value = session?.type ?? initialType;
+        describe();
         const allowed = new Set(a.slots.slice(a.snapshot.cursor).map(s => s.id));
         for (const p of a.calendar.periods)
             for (const w of p.weeks)
                 for (const d of w.days)
                     for (const s of d.slots) {
-                        if (!allowed.has(s.id) || a.sessions.some(existing => existing.slotId === s.id && existing.id !== session?.id))
+                        if (!allowed.has(s.id))
                             continue;
                         const o = node('option', `${p.name} · S${w.number} · ${d.name} · ${s.index + 1}`);
                         o.value = s.id;
@@ -144,10 +172,10 @@ export class AgendaView {
         const cancel = node('button', 'Annuler');
         cancel.type = 'button';
         cancel.onclick = () => form.remove();
-        form.append(node('h3', session ? 'Modifier ou déplacer la séance' : 'Nouvelle séance'), lesson, type, destination, submit, cancel);
+        form.append(node('h3', session ? 'Modifier ou déplacer la séance' : 'Nouvelle séance'), lesson, type, difficulty, help, destination, submit, cancel);
         form.onsubmit = e => { e.preventDefault(); if (this.locked())
             return; try {
-            a.place(destination.value, lesson.value, type.value, this.editing);
+            a.place(destination.value, lesson.value, type.value, this.editing, difficulty.hidden ? undefined : Number(difficulty.value));
             this.message = a.message;
             this.render();
         }

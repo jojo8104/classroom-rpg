@@ -1,3 +1,4 @@
+import { estimateMastery } from '../systems/LearningMemory.js';
 import { PlacementEvaluationSystem, knowledgeOf } from '../systems/PlacementEvaluationSystem.js';
 import { paragraph, renderStudentCard, signed, tagLabels } from './StudentCard.js';
 export class ClassroomPreparationView {
@@ -143,7 +144,7 @@ export class ClassroomPreparationView {
                 button.classList.add('draggable-student');
                 paragraph(button, student.name, 'strong');
                 const mastery = knowledgeOf(student, scenario.lesson.conceptIds[0] ?? '');
-                paragraph(button, mastery === null ? 'Non évalué' : `${mastery} %`, 'b');
+                paragraph(button, estimateMastery(student, scenario.lesson.id, scenario.teacher, scenario.activity?.day).label, 'b');
                 paragraph(button, scenario.archetypes.find(a => a.id === student.archetypeId)?.name ?? '', 'span');
                 button.setAttribute('aria-pressed', String(this.selected === student.id));
                 button.setAttribute('aria-label', `${student.name}, place ${label}${seat.locked ? ', verrouillée' : ''}`);
@@ -216,7 +217,7 @@ export class ClassroomPreparationView {
         if (!result.neighbors.length)
             paragraph(this.preview, 'Aucun voisin direct.');
         for (const neighbor of result.neighbors) {
-            paragraph(this.preview, `${neighbor.name} : ${signed(neighbor.relation)} · envers cet élève : ${signed(neighbor.incomingRelation)}${neighbor.knowledge !== null ? ' · acquis ' + neighbor.knowledge + ' %' : ''}`);
+            paragraph(this.preview, `${neighbor.name} : ${signed(neighbor.relation)} · envers cet élève : ${signed(neighbor.incomingRelation)}${neighbor.knowledge !== null ? ' · acquis à observer' : ''}`);
             if (neighbor.useful)
                 paragraph(this.preview, 'Soutien pédagogique potentiel — à mettre en balance avec la relation.');
         }

@@ -23,6 +23,8 @@ export class ClassPreparation {
                 const saved = migratePreparationSave(original, scenario);
                 const restored = structuredClone(scenario);
                 restored.students = saved.students;
+                if (saved.teacher)
+                    scenario.teacher = structuredClone(saved.teacher);
                 if (saved.classRelations)
                     restored.classRelations = saved.classRelations;
                 this.plans = { ...saved.plans, savedLayouts: saved.plans.savedLayouts ?? {} };
@@ -51,7 +53,7 @@ export class ClassPreparation {
             if (!this.storage)
                 throw new Error('Stockage indisponible.');
             this.storage.setItem(`classroom-rpg:${this.scenario.classroom.id}:preparation:v1`, JSON.stringify({
-                plans: this.plans, students: this.scenario.students, classRelations: this.scenario.classRelations
+                plans: this.plans, students: this.scenario.students, classRelations: this.scenario.classRelations, teacher: this.scenario.teacher
             }));
             this.message = 'Placement sauvegardé sur cet appareil.';
             return true;

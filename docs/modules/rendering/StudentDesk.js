@@ -34,13 +34,14 @@ export class StudentDesk {
             sprite.style.backgroundPosition = `${direction * 100 / Math.max(1, manifest.directions.length - 1)}% ${state.frame * 100 / Math.max(1, frames - 1)}%`;
         }
     }
-    render(state, progress, selected) {
+    render(state, progress, selected, observation) {
         const e = this.element;
         e.setAttribute('aria-pressed', String(selected));
-        e.setAttribute('aria-label', `${this.student.name}, compréhension ${progress} %, ${state.concentration === 0 ? 'décroché' : tiers[progressTier(progress)]}`);
-        e.querySelector('b').textContent = `${Math.round(progress)} %`;
-        e.querySelector('progress').value = progress;
-        e.querySelector('.learning-state').textContent = state.concentration === 0 ? 'Repos' : tiers[progressTier(progress)];
+        e.setAttribute('aria-label', `${this.student.name}, ${observation ?? tiers[progressTier(progress)]}, ${state.concentration === 0 ? 'décroché' : 'au travail'}`);
+        e.querySelector('b').textContent = observation?.replace('Maîtrise estimée : ', '≈ ').replace('Maîtrise non évaluée', 'Non évalué') ?? tiers[progressTier(progress)];
+        e.querySelector('progress').hidden = observation === 'Maîtrise non évaluée';
+        e.querySelector('progress').value = progressTier(progress) * 25;
+        e.querySelector('.learning-state').textContent = state.concentration === 0 ? 'Repos' : observation ? 'Observation' : tiers[progressTier(progress)];
         e.querySelector('.effect-count').textContent = state.effects.length ? `✦ ${state.effects.length}` : '';
         e.dataset.tier = String(progressTier(progress));
         e.classList.toggle('disengaged', state.concentration === 0);

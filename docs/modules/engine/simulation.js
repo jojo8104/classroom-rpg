@@ -1,3 +1,6 @@
+import { sessionRules } from '../data/sessionRules.js';
+import { sessionWork } from './session.js';
+import { bounded, memoryFor, erodeLearning, consolidateMemory, observeLearning, estimateMastery, repetitionLoss } from '../systems/LearningMemory.js';
 import { getTeachingMode } from '../data/teachingModes.js';
 import { lessonProgress } from '../systems/Curriculum.js';
 import { Concepts, initializeConcepts } from '../systems/Concepts.js';
@@ -35,6 +38,7 @@ export class Simulation {
     diagnostics = emptyDebugMetrics();
     get debugMetrics() { return { ...this.diagnostics }; }
     lessonResults;
+    reactivated = new Set();
     absentStudents;
     absentRelations;
     get layoutSnapshot() { return structuredClone(this.scenario.classroom.currentLayout); }
@@ -42,14 +46,32 @@ export class Simulation {
         const errors = validateScenario(scenario);
         if (errors.length)
             throw new Error(errors.join('\n'));
-        this.mode = getTeachingMode(scenario.activity?.teachingMode ?? 'lecture');
+        this.mode = getTeachingMode(scenario.activity?.sessionType ?? scenario.activity?.teachingMode ?? 'lecture');
+        if (scenario.activity?.sessionType && scenario.activity.sessionType !== scenario.activity.teachingMode)
+            throw new Error('Types de séance incohérents.');
+        const difficulty = scenario.activity?.difficulty;
+        if (difficulty !== undefined && (!Number.isFinite(difficulty) || difficulty < 0 || difficulty > 100))
+            throw new Error('Difficulté invalide.');
         if (scenario.activity && scenario.activity.lessonId !== scenario.lesson.id)
             throw new Error('Activité : leçon incohérente.');
         if (!(scenario.lesson.availableTeachingModes ?? ['lecture']).includes(this.mode.id))
             throw new Error('Mode indisponible pour cette leçon.');
-        if (this.mode.resolution === 'deferred')
-            throw new Error('Les devoirs attendent une résolution différée (Roadmap 10).');
+        if (this.mode.id === 'homework' && scenario.teacher.patience < sessionRules.homeworkPatience)
+            throw new Error('Patience insuffisante pour ce devoir.');
+        if (this.mode.id === 'assessment' && scenario.teacher.authority < sessionRules.assessmentAuthority)
+            throw new Error('Autorité insuffisante pour cette évaluation.');
         this.scenario = structuredClone(scenario);
+        erodeLearning(this.scenario.students, this.day);
+        for (const student of this.scenario.students.filter(s => s.present !== false))
+            memoryFor(student, this.scenario.lesson.id, this.day);
+        if (this.mode.id === 'assessment')
+            this.scenario.lesson.roundCount = sessionRules.assessmentRounds;
+        if (this.mode.id === 'homework')
+            this.scenario.lesson.roundCount = 2;
+        if (this.mode.id === 'revision') {
+            const related = this.scenario.concepts.filter(c => c.tags.some(t => this.scenario.lesson.tags?.includes(t)));
+            this.scenario.lesson.conceptIds = [...new Set([...this.scenario.lesson.conceptIds, ...related.map(c => c.id)])];
+        }
         if (this.mode.prepareLesson)
             this.scenario.lesson = this.mode.prepareLesson(this.scenario.lesson);
         this.scenario.students.filter(s => s.present !== false).forEach(initializeConcepts);
@@ -80,6 +102,10 @@ export class Simulation {
         validateTeacherRules(teacherRules);
         this.teacherRules = structuredClone(teacherRules);
         this.teacher = { ...structuredClone(scenario.teacher), maxPatience: scenario.teacher.maxPatience ?? scenario.teacher.patience };
+        if (this.mode.id === 'assessment')
+            this.teacher.authority -= sessionRules.assessmentAuthority;
+        if (this.mode.id === 'homework')
+            this.teacher.patience -= sessionRules.homeworkPatience;
         this.seed = seed;
         this.random = new SeededRandom(seed);
         const seats = new ClassroomLayoutSystem(layout);
@@ -94,6 +120,7 @@ export class Simulation {
         for (const state of this.students) {
             const student = this.scenario.students.find(s => s.id === state.studentId);
             this.mode.prepareStudent?.(student, state);
+            state.morale = bounded(state.morale - repetitionLoss(student, this.mode.id) - (this.mode.id === 'assessment' ? sessionRules.assessmentMorale : 0));
             state.morale = Math.max(0, Math.min(100, state.morale + getSeatPreferenceModifier(student, seats.getStudentSeat(student.id))));
         }
         validateActionRules(this.rules, this.students.length);
@@ -113,7 +140,10 @@ export class Simulation {
             throw new Error('Élève inconnu.');
         this.emit(selectSpecialization(student, id));
     }
-    get session() { return { lessonId: this.scenario.lesson.id, teachingMode: this.mode.id, round: this.round, state: this.phase, students: this.studentStates }; }
+    get session() { return { ...this.scenario.activity, lessonId: this.scenario.lesson.id, teachingMode: this.mode.id, sessionType: this.mode.id, round: this.round, state: this.phase, students: this.studentStates }; }
+    get day() { return this.scenario.activity?.day ?? Math.max(0, ...this.scenario.students.flatMap(s => Object.values(s.learningMemory ?? {}).map(m => m.erosionUpdatedAt))); }
+    get roundCount() { return this.scenario.lesson.roundCount; }
+    get individual() { return this.mode.id === 'assessment' || this.mode.id === 'homework'; }
     get state() { return this.phase; }
     get events() { return structuredClone(this.history); }
     get studentStates() { return structuredClone(this.students); }
@@ -126,6 +156,8 @@ export class Simulation {
     teacherActions(targetId = '') {
         return Object.keys(this.teacherRules.actions).map(kind => {
             const action = kind === 'PASS' || kind === 'BREAK' ? { kind } : { kind, targetId };
+            if (this.individual && kind !== 'PASS')
+                return { ...previewTeacherAction(this.teacherContext(), action), available: false, reason: 'Travail individuel sans intervention.' };
             const preview = previewTeacherAction(this.teacherContext(), action);
             return this.phase === 'TEACHER_INTERVENTION' ? preview : { ...preview, available: false, reason: 'Attendez la fin du round.' };
         });
@@ -147,7 +179,7 @@ export class Simulation {
         this.phase = 'ROUND_RESOLVING';
         this.round++;
         this.emit({ type: 'ROUND_STARTED' });
-        const result = resolveActionRound(this.scenario.students, this.students, this.random, this.rules, this.scenario.lesson, { learningMultiplier: student => new Concepts(this.scenario.concepts).learningMultiplier(student, this.scenario.lesson.tags ?? []), validated: true, targeting: this.targeting, relationIndex: this.relationIndex, abilityUsage: this.abilityUsage, learningRules: this.scenario.learningRules, interactionRules: this.scenario.interactionRules, classroom: this.scenario.classroom, archetypes: this.scenario.archetypes,
+        const result = resolveActionRound(this.scenario.students, this.students, this.random, this.rules, this.scenario.lesson, { individual: this.individual, sessionWork: (student, state) => sessionWork(this.mode.id, student, state, this.scenario.lesson, this.teacher, this.scenario.activity?.difficulty), learningMultiplier: student => new Concepts(this.scenario.concepts).learningMultiplier(student, this.scenario.lesson.tags ?? []), validated: true, targeting: this.targeting, relationIndex: this.relationIndex, abilityUsage: this.abilityUsage, learningRules: this.mode.id === 'lecture' ? this.scenario.learningRules : { successMorale: this.mode.id === 'assessment' ? 0 : 0.5, effortConcentration: this.mode.id === 'assessment' ? sessionRules.assessmentEffort : this.mode.id === 'revision' ? 1 : 3, damageMoraleRatio: 0.05, maxRetaliationMoraleLoss: 1 }, interactionRules: this.scenario.interactionRules, classroom: this.scenario.classroom, archetypes: this.scenario.archetypes,
             classRelations: this.scenario.classRelations, relations: this.scenario.relations ?? [], abilities: this.scenario.reactionAbilities ?? [] }, { teacher: this.teacher, rules: this.teacherRules });
         this.students = result.students;
         for (const event of result.events)
@@ -155,9 +187,19 @@ export class Simulation {
         const concepts = new Concepts(this.scenario.concepts);
         for (const student of this.scenario.students) {
             const state = this.students.find(s => s.studentId === student.id);
+            if (this.mode.id === 'revision' && state.concentration > 0) {
+                for (const concept of concepts.getConceptsByTags(student, []).filter(c => c.tags.some(t => this.scenario.lesson.tags?.includes(t)))) {
+                    const key = `${student.id}/${concept.id}`;
+                    if (!this.reactivated.has(key) && this.random.next() < 0.15 + (student.lessonMastery?.[this.scenario.lesson.id] ?? 0) / 200) {
+                        this.reactivated.add(key);
+                        memoryFor(student, this.scenario.lesson.id, this.day).revisionProtection = sessionRules.revisionProtection;
+                        this.emit({ type: 'concept_reactivated', studentId: student.id, conceptId: concept.id });
+                    }
+                }
+            }
             const gain = result.events.filter(e => e.type === 'UNDERSTANDING_CHANGED' && e.studentId === student.id).reduce((sum, e) => sum + (e.type === 'UNDERSTANDING_CHANGED' ? e.amount : 0), 0);
-            for (const event of concepts.attemptDiscoveries({ student, lesson: this.scenario.lesson, lessonProgress: state.lessonUnderstanding, teacher: this.teacher,
-                teacherModifier: this.decisions.at(-1)?.kind === 'REEXPLAIN' ? 0.1 : 0, modeMultiplier: this.mode.conceptMultiplier }, gain, this.random))
+            for (const event of concepts.attemptDiscoveries({ student, lesson: this.scenario.lesson, lessonProgress: this.mode.id === 'revision' ? Math.max(state.lessonUnderstanding, student.lessonMastery?.[this.scenario.lesson.id] ?? 0) : state.lessonUnderstanding, teacher: this.teacher,
+                teacherModifier: this.decisions.at(-1)?.kind === 'REEXPLAIN' ? 0.1 : 0, modeMultiplier: this.mode.conceptMultiplier * (this.mode.id === 'revision' ? 1 + (student.lessonMastery?.[this.scenario.lesson.id] ?? 0) / 100 : 1) }, gain, this.random))
                 this.emit(event);
         }
         this.emit({ type: 'ROUND_ENDED', students: this.students });
@@ -182,6 +224,8 @@ export class Simulation {
     }
     applyTeacherAction(action) {
         this.requireState('TEACHER_INTERVENTION');
+        if (this.individual && action.kind !== 'PASS')
+            throw new Error('Travail individuel sans intervention.');
         const result = resolveTeacherAction(this.teacherContext(), action, this.rules.dropoutMoraleLoss);
         const start = this.history.length;
         this.teacher = result.teacher;
@@ -196,14 +240,17 @@ export class Simulation {
     advanceAfterIntervention() {
         if (!this.hasNextRound) {
             this.phase = 'LESSON_FINISHED';
-            this.emit({ type: 'LESSON_ENDED', results: this.individualResults() });
             this.lessonResults = this.individualResults();
             for (const student of this.scenario.students) {
                 const before = lessonProgress(student, this.scenario.lesson.id).mastery;
                 const understanding = this.lessonResults.find(r => r.studentId === student.id).understanding;
-                student.lessonMastery ??= {};
-                student.lessonMastery[this.scenario.lesson.id] = Math.round(Math.min(100, Math.max(0, before + this.mode.masteryGain(before, understanding))) * 100) / 100;
+                consolidateMemory(student, this.scenario.lesson.id, before + this.mode.masteryGain(before, understanding), this.mode.id, this.day, understanding);
+                observeLearning(student, this.scenario.lesson.id, this.teacher, this.mode.id, this.day, understanding);
+                const observation = estimateMastery(student, this.scenario.lesson.id, this.teacher, this.day);
+                this.emit({ type: 'LEARNING_OBSERVED', studentId: student.id, label: observation.label, feedback: observation.feedback });
+                student.recentSessionTypes = [...(student.recentSessionTypes ?? []), this.mode.id].slice(-sessionRules.historyLimit);
             }
+            this.emit({ type: 'LESSON_ENDED', results: this.individualResults() });
             // Socle de connaissances : consolidation modérée, une seule fois par leçon.
             for (const student of this.scenario.students) {
                 if (!student.knowledge)
@@ -242,7 +289,7 @@ export class Simulation {
     getResult() {
         this.requireState('LESSON_FINISHED');
         // Nouvelle séance : concentration restaurée, moral conservé. L'historique reste dans results.
-        const nextLessonStudents = this.scenario.students.map(student => ({ ...structuredClone(student), concentration: 100,
+        const nextLessonStudents = this.scenario.students.map(student => ({ ...structuredClone(student), concentration: this.mode.id === 'homework' ? this.students.find(state => state.studentId === student.id).concentration : 100,
             morale: this.students.find(state => state.studentId === student.id).morale }));
         nextLessonStudents.push(...structuredClone(this.absentStudents));
         return { ...(this.scenario.classRelations ? { classRelations: this.classRelations } : {}), seed: this.seed, results: this.individualResults(), events: this.events, nextLessonStudents,

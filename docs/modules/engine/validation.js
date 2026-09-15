@@ -1,3 +1,4 @@
+import { validateLearningMemory } from '../systems/LearningMemory.js';
 import { statBounds } from '../data/rules.js';
 import { validateReactionSetup } from './reactions.js';
 import { validateProgression } from './progression.js';
@@ -50,6 +51,8 @@ export function validateScenario(scenario) {
     const occupiedSeats = new Set();
     for (const student of students) {
         errors.push(...validateProgression(student));
+        if (!validateLearningMemory(student))
+            errors.push('Mémoire pédagogique invalide.');
         if (student.progression && !scenario.interactionRules)
             errors.push('La progression exige les règles de maîtrise.');
         if (student.disruptionChance !== undefined && (!Number.isFinite(student.disruptionChance) || student.disruptionChance < 0 || student.disruptionChance > 1))
