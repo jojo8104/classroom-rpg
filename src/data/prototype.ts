@@ -1,3 +1,4 @@
+import { curriculum } from './curriculum.js';
 import { conceptCatalog } from './concepts.js';
 import { createLearningRules } from './learningRules.js';
 import { createInteractionRules } from './interactionRules.js';
@@ -53,18 +54,10 @@ export function createPrototype(): PrototypeScenario {
       { id: 'defensive', name: 'Défensif', reactionIds: ['protect_neighbor'] },
       { id: 'support', name: 'Support', reactionIds: ['explain_neighbor'] },
     ],
-    program: { id: 'general-primary', name: 'École des royaumes - enseignement primaire' },
-    subject: { programId: 'general-primary', id: 'mathematics', name: 'Mathématiques' },
-    topic: { id: 'fractions', subjectId: 'mathematics', name: 'Fractions' },
-    lesson: {
-      complexity: 50, pressure: 70, requiredProgress: 100,
-      id: 'introduction-to-fractions', topicId: 'fractions',
-      name: 'Introduction aux fractions - provisions de voyage',
-      tags: ['mathematics', 'sharing'],
-      conceptPool: [{ conceptId: 'fraction', baseRate: 0.04 }, { conceptId: 'numerator', baseRate: 0.03 }, { conceptId: 'denominator', baseRate: 0.03 }],
-      roundCount: 6,
-      conceptIds: ['fraction', 'numerator', 'denominator'],
-    },
+    program: structuredClone(curriculum.programs[0]!),
+    subject: structuredClone(curriculum.subjects[0]!),
+    topic: structuredClone(curriculum.chapters[0]!),
+    lesson: structuredClone(curriculum.lessons[0]!),
     concepts: structuredClone(conceptCatalog),
   };
 }

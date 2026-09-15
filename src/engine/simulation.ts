@@ -1,3 +1,5 @@
+import { getTeachingMode, type TeachingModeDefinition } from '../data/teachingModes.js';
+import { lessonProgress } from '../systems/Curriculum.js';
 import { Concepts, initializeConcepts } from '../systems/Concepts.js';
 import { TargetingSystem } from '../systems/TargetingSystem.js';
 import { RelationIndex } from '../systems/RelationIndex.js';
@@ -33,6 +35,7 @@ export interface SimulationResult {
 }
 
 export class Simulation {
+  private readonly mode: TeachingModeDefinition;
   private readonly scenario: PrototypeScenario;
   private readonly rules: ActionRules;
   private readonly random: SeededRandom;
@@ -58,7 +61,12 @@ export class Simulation {
   constructor(scenario: PrototypeScenario, seed: number, rules = createActionRules(), teacherRules = createTeacherRules()) {
     const errors = validateScenario(scenario);
     if (errors.length) throw new Error(errors.join('\n'));
+    this.mode = getTeachingMode(scenario.activity?.teachingMode ?? 'lecture');
+    if (scenario.activity && scenario.activity.lessonId !== scenario.lesson.id) throw new Error('Activité : leçon incohérente.');
+    if (!(scenario.lesson.availableTeachingModes ?? ['lecture']).includes(this.mode.id)) throw new Error('Mode indisponible pour cette leçon.');
+    if (this.mode.resolution === 'deferred') throw new Error('Les devoirs attendent une résolution différée (Roadmap 10).');
     this.scenario = structuredClone(scenario);
+    if (this.mode.prepareLesson) this.scenario.lesson = this.mode.prepareLesson(this.scenario.lesson);
     this.scenario.students.filter(s => s.present !== false).forEach(initializeConcepts);
     this.absentStudents = this.scenario.students.filter(s => s.present === false);
     const activeIds = new Set(this.scenario.students.filter(s => s.present !== false).map(s => s.id));
@@ -92,6 +100,7 @@ export class Simulation {
     this.students = createLessonStates(this.scenario.students, this.scenario.lesson);
     for (const state of this.students) {
       const student = this.scenario.students.find(s => s.id === state.studentId)!;
+      this.mode.prepareStudent?.(student, state);
       state.morale = Math.max(0, Math.min(100, state.morale + getSeatPreferenceModifier(student, seats.getStudentSeat(student.id)!)));
     }
     validateActionRules(this.rules, this.students.length);
@@ -111,6 +120,7 @@ export class Simulation {
     if (!student) throw new Error('Élève inconnu.');
     this.emit(selectSpecialization(student, id));
   }
+  get session(): import('../domain.js').LessonSession { return { lessonId: this.scenario.lesson.id, teachingMode: this.mode.id, round: this.round, state: this.phase, students: this.studentStates }; }
   get state(): LessonState { return this.phase; }
   get events(): GameEvent[] { return structuredClone(this.history); }
   get studentStates(): StudentLessonState[] { return structuredClone(this.students); }
@@ -150,11 +160,18 @@ export class Simulation {
     this.emit({ type: 'ROUND_STARTED' });
     const result = resolveActionRound(this.scenario.students, this.students, this.random, this.rules,
       this.scenario.lesson,
-      { validated:true, targeting:this.targeting, relationIndex:this.relationIndex, abilityUsage: this.abilityUsage, learningRules: this.scenario.learningRules, interactionRules: this.scenario.interactionRules, classroom: this.scenario.classroom, archetypes: this.scenario.archetypes,
+      { learningMultiplier: student => new Concepts(this.scenario.concepts).learningMultiplier(student, this.scenario.lesson.tags ?? []), validated:true, targeting:this.targeting, relationIndex:this.relationIndex, abilityUsage: this.abilityUsage, learningRules: this.scenario.learningRules, interactionRules: this.scenario.interactionRules, classroom: this.scenario.classroom, archetypes: this.scenario.archetypes,
         classRelations: this.scenario.classRelations, relations: this.scenario.relations ?? [], abilities: this.scenario.reactionAbilities ?? [] },
       { teacher: this.teacher, rules: this.teacherRules });
     this.students = result.students;
     for (const event of result.events) this.emit(event);
+    const concepts = new Concepts(this.scenario.concepts);
+    for (const student of this.scenario.students) {
+      const state = this.students.find(s => s.studentId === student.id)!;
+      const gain = result.events.filter(e => e.type === 'UNDERSTANDING_CHANGED' && e.studentId === student.id).reduce((sum, e) => sum + (e.type === 'UNDERSTANDING_CHANGED' ? e.amount : 0), 0);
+      for (const event of concepts.attemptDiscoveries({ student, lesson: this.scenario.lesson, lessonProgress: state.lessonUnderstanding, teacher: this.teacher,
+        teacherModifier: this.decisions.at(-1)?.kind === 'REEXPLAIN' ? 0.1 : 0, modeMultiplier: this.mode.conceptMultiplier }, gain, this.random)) this.emit(event);
+    }
     this.emit({ type: 'ROUND_ENDED', students: this.students });
     this.phase = 'ROUND_RESULT';
     const events=structuredClone(this.history.slice(start));
@@ -197,20 +214,26 @@ export class Simulation {
       this.phase = 'LESSON_FINISHED';
       this.emit({ type: 'LESSON_ENDED', results: this.individualResults() });
       this.lessonResults = this.individualResults();
+      for (const student of this.scenario.students) {
+        const before = lessonProgress(student, this.scenario.lesson.id).mastery;
+        const understanding = this.lessonResults.find(r => r.studentId === student.id)!.understanding;
+        student.lessonMastery ??= {};
+        student.lessonMastery[this.scenario.lesson.id] = Math.round(Math.min(100, Math.max(0, before + this.mode.masteryGain(before, understanding))) * 100) / 100;
+      }
       // Socle de connaissances : consolidation modérée, une seule fois par leçon.
       for (const student of this.scenario.students) {
         if (!student.knowledge) continue;
         const understanding = this.lessonResults.find(r => r.studentId === student.id)!.understanding;
         for (const concept of this.scenario.lesson.conceptIds) {
           const before = student.knowledge[concept] ?? 0;
-          student.knowledge[concept] = Math.round((before + Math.max(0, understanding - before) * 0.15) * 100) / 100;
+          student.knowledge[concept] = Math.round((before + Math.max(0, understanding - before) * 0.15 * this.mode.conceptMultiplier) * 100) / 100;
         }
       }
       const progressionEvents: GameEventPayload[] = [];
       for (const student of this.scenario.students) {
         if (!student.progression) continue;
         const result = this.lessonResults.find(r => r.studentId === student.id)!;
-        const settled = settleProgression(student, this.history, result.understanding, { service: new Concepts(this.scenario.concepts), context: { lesson: this.scenario.lesson, teacher: this.teacher }, random: this.random });
+        const settled = settleProgression(student, this.history, result.understanding, { service: new Concepts(this.scenario.concepts), context: { lesson: this.scenario.lesson, teacher: this.teacher, modeMultiplier: this.mode.conceptMultiplier }, random: this.random });
         result.progression = settled.result;
         progressionEvents.push(...settled.events);
       }

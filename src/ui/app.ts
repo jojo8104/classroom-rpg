@@ -1,3 +1,10 @@
+import { Agenda } from '../systems/Agenda.js';
+import { AgendaView } from './AgendaView.js';
+import { defaultCalendarConfig } from '../data/calendarConfig.js';
+import { curriculum } from '../data/curriculum.js';
+import { selectLessonActivity } from '../systems/Curriculum.js';
+import { lessonProgress } from '../systems/Curriculum.js';
+import { getTeachingMode } from '../data/teachingModes.js';
 import { ClassroomRenderer, type GraphicsQuality } from '../rendering/ClassroomRenderer.js';
 import { getRelation, modifyRelation, personalityLabels, personalityTraits } from '../engine/social.js';
 import { summarizeRound } from './roundSummary.js';
@@ -25,6 +32,9 @@ const scenario = createFullClassPrototype();
 let storage: PlanStorage | undefined;
 try { storage = window.localStorage; } catch { /* Le jeu reste disponible sans stockage. */ }
 const preparation = new ClassPreparation(scenario, storage);
+const agenda = new Agenda(defaultCalendarConfig, curriculum, storage, `classroom-rpg:${scenario.classroom.id}:agenda:v1`);
+let activeSessionId: string | undefined;
+let agendaView: AgendaView | undefined;
 let gameState: typeof GAME_STATE[keyof typeof GAME_STATE] = GAME_STATE.CLASS_PREPARATION;
 let simulation: Simulation;
 let renderer: ClassroomRenderer | undefined;
@@ -45,12 +55,12 @@ const advance = el<HTMLButtonElement>('advance');
 const seed = el<HTMLInputElement>('seed');
 const speed = el<HTMLSelectElement>('simulation-speed');
 const metricsPanel=el('class-metrics');
-const totalRounds=scenario.lesson.roundCount;
+let totalRounds=scenario.lesson.roundCount;
 el<HTMLProgressElement>('lesson-progress').max=totalRounds;
 el('class-size').textContent=`LA CLASSE · ${scenario.classroom.rows} × ${scenario.classroom.columns} · ${scenario.students.length} élèves`;
 for(const direction of [-1,1]) el(direction<0 ? 'scroll-left' : 'scroll-right').onclick=()=>el('seat-viewport').scrollBy({left:direction*240,behavior:'smooth'});
 function renderMetrics() {
-  const states=gameState===GAME_STATE.CLASS_PREPARATION ? scenario.students.filter(s=>s.present!==false).map(s=>({studentId:s.id,lessonUnderstanding:s.knowledge?.[scenario.lesson.conceptIds[0]!] ?? 0,concentration:s.concentration,morale:s.morale,effects:[],progress:0,missedRounds:0})) : [...shownStates.values()];
+  const states=gameState===GAME_STATE.CLASS_PREPARATION ? scenario.students.filter(s=>s.present!==false).map(s=>({studentId:s.id,lessonUnderstanding:lessonProgress(s, scenario.lesson.id).mastery,concentration:s.concentration,morale:s.morale,effects:[],progress:0,missedRounds:0})) : [...shownStates.values()];
   const m=getClassMetrics(scenario.students,states);
   metricsPanel.textContent=`${m.count} présents · ${gameState===GAME_STATE.CLASS_PREPARATION ? 'Acquis' : 'Compréhension'} ${m.averageProgress.toFixed(0)} % · Concentration ${m.averageConcentration.toFixed(0)} · Moral ${m.averageMorale.toFixed(0)} · Discipline ${m.averageDiscipline.toFixed(0)} | En difficulté ${m.distribution.struggling} · Partiels ${m.distribution.partial} · Acquis ${m.distribution.acquired} · Maîtrisés ${m.distribution.mastered}`;
 }
@@ -272,6 +282,7 @@ function syncControls() {
     scenario.students = result.nextLessonStudents;
     if (result.classRelations) scenario.classRelations = result.classRelations;
     preparation.save();
+    if (activeSessionId) { agenda.consume(activeSessionId); activeSessionId = undefined; agendaView?.render(); }
     el('debug-stats').textContent=JSON.stringify(simulation.debugMetrics,null,2);
     restart.querySelector('button')!.textContent = 'Préparer la prochaine leçon';
     el('phase').textContent = 'Leçon terminée'; el('status').textContent = 'Chaque élève a son résultat. Sélectionnez un pupitre pour le consulter.';
@@ -355,7 +366,7 @@ async function showEvents(events: GameEvent[]) {
       for (const result of event.results) {
         const p = result.progression; if (!p) continue;
         const row = document.createElement('p');
-        row.textContent = `${studentName(result.studentId)} · compréhension ${result.understanding} % · +${p.xpGained} XP · niveau ${p.beforeLevel} → ${p.afterLevel} · total ${p.xp} XP`;
+        row.textContent = `${studentName(result.studentId)} · maîtrise ${lessonProgress(simulation.persistentStudents.find(s => s.id === result.studentId)!, scenario.lesson.id).mastery} % · compréhension ${result.understanding} % · +${p.xpGained} XP · niveau ${p.beforeLevel} → ${p.afterLevel} · total ${p.xp} XP`;
         const details = document.createElement('small'); details.textContent = Object.entries(p.rewards).map(([k,v]) => `${rewardLabels[k as keyof typeof rewardLabels]} +${v}`).join(' · ');
         row.append(document.createElement('br'), details);
         if (p.unlockedAbilities.length) row.append(document.createElement('br'), 'Compétences apprises : ' + p.unlockedAbilities.map(id => abilityCatalog.find(a => a.id === id)!.name).join(', '));
@@ -515,10 +526,23 @@ async function advanceLesson() {
 advance.addEventListener('click', () => { if (gameState === GAME_STATE.CLASS_PREPARATION) startLesson(); else void advanceLesson(); });
 function startLesson() {
   if (!restart.reportValidity()) return;
-  try { simulation = new Simulation(preparation.prepareLesson(), Number(seed.value), createClassroomActionRules(scenario.students.filter(s=>s.present!==false).length)); }
+  try {
+    const session = agenda.nextSession();
+    const selectedScenario = selectLessonActivity(scenario, curriculum, { lessonId: session.lessonId, teachingMode: session.type });
+    const nextSimulation = new Simulation({ ...preparation.prepareLesson(), program: selectedScenario.program!, subject: selectedScenario.subject, topic: selectedScenario.topic, lesson: selectedScenario.lesson, activity: selectedScenario.activity! }, Number(seed.value), createClassroomActionRules(scenario.students.filter(s=>s.present!==false).length));
+    Object.assign(scenario, { program: selectedScenario.program, subject: selectedScenario.subject, topic: selectedScenario.topic, lesson: selectedScenario.lesson, activity: selectedScenario.activity });
+    simulation = nextSimulation; activeSessionId = session.id;
+    totalRounds = scenario.lesson.roundCount;
+    el<HTMLProgressElement>('lesson-progress').max = totalRounds;
+    curriculumPath.textContent = `${scenario.program?.name ?? ''} / ${scenario.subject.name} / ${scenario.topic.name} / ${scenario.lesson.name}`;
+    lessonStats.textContent = `Complexité ${scenario.lesson.complexity} · Pression ${scenario.lesson.pressure} · Objectif individuel ${scenario.lesson.requiredProgress}`;
+    modeSelect.replaceChildren();
+    const option = document.createElement('option'); option.value = session.type; option.textContent = getTeachingMode(session.type).name; modeSelect.append(option);
+  }
   catch (error) { el('status').textContent = (error as Error).message; return; }
   preparationView?.destroy(); preparationView = undefined;
-  gameState = GAME_STATE.LESSON;
+  gameState = GAME_STATE.LESSON; agendaView?.render();
+  modeSelect.disabled = true;
   lessonPanel.hidden = true; el('round-result').hidden = true;
   shownRelations = simulation.classRelations!;
   reactionsUsed.clear(); reactionFeedback.clear();
@@ -538,8 +562,9 @@ function startLesson() {
   if (selected) renderStudents(); syncControls();
 }
 function enterPreparation() {
+  modeSelect.disabled = true;
   renderer?.destroy(); renderer = undefined; detailOpen = true; el('student-detail').hidden = false;
-  gameState = GAME_STATE.CLASS_PREPARATION;
+  gameState = GAME_STATE.CLASS_PREPARATION; activeSessionId = undefined; agendaView?.render();
   preparationView?.destroy();
   lessonPanel.hidden = true; el('round-result').hidden = true;
   preparationView = new ClassroomPreparationView(preparation, el('seats'), el('student-detail'));
@@ -551,11 +576,24 @@ restart.addEventListener('submit', event => {
   event.preventDefault(); if (busy || !restart.reportValidity()) return;
   enterPreparation();
 });
+const modeSelect = document.createElement('select');
+modeSelect.setAttribute('aria-label', 'Mode pédagogique');
+for (const id of scenario.lesson.availableTeachingModes ?? ['lecture']) {
+  const mode = getTeachingMode(id), option = document.createElement('option');
+  option.value = id; option.disabled = mode.resolution === 'deferred';
+  option.textContent = mode.name + (option.disabled ? ' (différé, à venir)' : ''); modeSelect.append(option);
+}
+const curriculumPath = document.createElement('p'); curriculumPath.className = 'lesson-stats';
+curriculumPath.textContent = `${scenario.program?.name ?? ''} / ${scenario.subject.name} / ${scenario.topic.name} / ${scenario.lesson.name}`;
+document.querySelector('.board')!.prepend(curriculumPath, modeSelect);
 enterPreparation();
 const lessonStats = document.createElement('p');
 lessonStats.className = 'lesson-stats';
 lessonStats.textContent = `Complexité ${scenario.lesson.complexity} · Pression ${scenario.lesson.pressure} · Objectif individuel ${scenario.lesson.requiredProgress}`;
 document.querySelector('.board')!.append(lessonStats);
+const agendaRoot = document.createElement('section'); agendaRoot.id = 'agenda';
+document.querySelector('main')!.prepend(agendaRoot);
+agendaView = new AgendaView(agendaRoot, agenda, () => scenario.students, () => gameState === GAME_STATE.LESSON);
 
 // Interface facultative : les navigateurs ordinaires n'ont pas ce registre.
 interface ModelContext {
@@ -586,3 +624,5 @@ if (context) {
     } catch { /* Le jeu reste utilisable si le registre facultatif est indisponible. */ }
   }
 }
+
+

@@ -1,5 +1,7 @@
 // Les définitions persistantes sont séparées de l'état temporaire d'une séance.
 export interface Student {
+  /** Maîtrise persistante par ID de leçon ; absente dans les anciennes sauvegardes. */
+  lessonMastery?: Record<string, number>;
   concepts?: { acquired: string[]; progress: Record<string, number> };
   progression?: import('./engine/progression.js').StudentProgression;
   personality?: PersonalityProfile;
@@ -114,7 +116,17 @@ export interface Topic {
   name: string;
 }
 
+/** Topic est le nom historique du chapitre. */
+export type Chapter = Topic;
+export type TeachingMode = string;
+export interface LessonActivity { lessonId: string; teachingMode: TeachingMode }
+export interface StudentLessonProgress { studentId: string; lessonId: string; mastery: number }
+export interface Curriculum { programs: Program[]; subjects: Subject[]; chapters: Chapter[]; lessons: Lesson[] }
+export interface LessonSession extends LessonActivity { round: number; state: import('./engine/simulation.js').LessonState; students: StudentLessonState[] }
+
 export interface Concept {
+  baseRate?: number;
+  conditions?: { minimumUnderstanding?: number; requiredConceptIds?: string[] };
   id: string;
   name: string;
   description: string;
@@ -125,6 +137,8 @@ export interface Concept {
 export interface Program { id: string; name: string }
 
 export interface Lesson {
+  availableTeachingModes?: TeachingMode[];
+  prerequisites?: { lessonId: string; mastery: number }[];
   tags?: string[];
   conceptPool?: { conceptId: string; baseRate: number }[];
   complexity: number;
@@ -159,6 +173,7 @@ export interface LessonResult {
 }
 
 export interface PrototypeScenario {
+  activity?: LessonActivity;
   program?: Program;
   classRelations?: ClassRelations;
   learningRules?: import('./data/learningRules.js').LearningRules;

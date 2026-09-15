@@ -22,6 +22,7 @@ export interface WorkTurnContext {
 }
 
 export interface AttackModifiers {
+  learningMultiplier?: number;
   combined?: { partner: Student; synergyRatio: number; abilityId?: string };
 }
 
@@ -58,7 +59,7 @@ export function* resolveWorkTurn(context: WorkTurnContext): Generator<ReactionWi
   const critical = random.next() < rules.criticalChance;
   const effective = effectiveStats(student, state);
   const variation = random.next();
-  const multiplier = critical ? rules.criticalMultiplier : 1;
+  const multiplier = (critical ? rules.criticalMultiplier : 1) * (context.modifiers?.learningMultiplier ?? 1);
   const gain = workGain(effective, effective.morale, lesson, rules, variation) * multiplier;
   if (critical) events.push({ type: 'CRITICAL_HIT', studentId: student.id });
   const progressBefore = state.progress;

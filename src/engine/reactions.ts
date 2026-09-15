@@ -17,6 +17,7 @@ import { abilities as catalog } from '../data/abilities.js';
 import { ClassroomLayoutSystem, layoutFromClassroom } from '../systems/ClassroomLayoutSystem.js';
 
 export interface ReactionSetup {
+  learningMultiplier?: (student: Student) => number;
   targeting?: TargetingSystem;
   relationIndex?: RelationIndex | undefined;
   validated?: boolean;

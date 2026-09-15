@@ -364,3 +364,7 @@ Pendant la leçon, les 25 pupitres sont projetés en perspective avec personnage
 La préparation conserve son plan logique et ses sauvegardes. Le moteur de simulation et ses règles ne changent pas. Les six orientations utilisent un personnage témoin commun ; les animations sont courtes et extensibles par atlas.
 
 Voir [la validation de Roadmap 8](VALIDATION_ROADMAP8.md). `npm run build:pages` reconstruit également les modules de rendu et les ressources dans `docs/`.
+
+## Roadmap 10 — Agenda scolaire
+
+Le calendrier configurable et persistant permet de planifier plusieurs séances sur la même leçon, de choisir leur approche, de les déplacer et d'arbitrer le temps disponible. Planifiez la séance du créneau courant dans l'agenda avant de lancer la leçon. Les acquis, le programme restant et les échéances de période sont visibles. Voir [Roadmap 10](ROADMAP10.md) pour la configuration, les sauvegardes et les limites de cette première version.

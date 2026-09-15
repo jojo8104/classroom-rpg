@@ -41,11 +41,12 @@ describe('Concepts persistants', () => {
     expect(student.intelligence).toBe(scenario.students[0]!.intelligence);
     expect(settled.events.filter(e => e.type === 'concept_discovered')).toEqual([]);
   });
-  it('branche les découvertes après XP dans une simulation et conserve les élèves persistants', () => {
+  it('branche les découvertes pendant la séance dans une simulation et conserve les élèves persistants', () => {
     const { scenario } = setup(); scenario.lesson.conceptPool![0]!.baseRate = 1;
     const result = new Simulation(scenario, 42).runToCompletion();
     const discovery = result.events.findIndex(e => e.type === 'concept_discovered');
-    expect(discovery).toBeGreaterThan(result.events.findIndex(e => e.type === 'XP_GAINED'));
+    expect(discovery).toBeGreaterThan(0);
+    expect(discovery).toBeLessThan(result.events.findIndex(e => e.type === 'LESSON_ENDED'));
     expect(result.nextLessonStudents.every(s => s.concepts!.acquired.includes('fraction'))).toBe(true);
   });
   it('sauvegarde et charge acquis et progression ; migre les sauvegardes anciennes', () => {

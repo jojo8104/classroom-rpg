@@ -16,7 +16,7 @@ export function hasConcept(student: Student, conceptId: string): boolean {
 }
 export interface DiscoveryContext {
   student: Student; lesson: Lesson; conceptId: string; baseRate: number;
-  lessonProgress: number; teacher?: Teacher; teacherModifier?: number;
+  lessonProgress: number; modeMultiplier?: number; teacher?: Teacher; teacherModifier?: number;
 }
 export class Concepts {
   constructor(private readonly catalog: readonly Concept[]) {}
@@ -33,7 +33,11 @@ export class Concepts {
       .reduce((sum, e) => sum + Math.max(0, Number.isFinite(e.value) ? e.value : 0), 0);
   }
   isEligible(context: DiscoveryContext) {
-    return !!this.getConcept(context.conceptId) && !hasConcept(context.student, context.conceptId) && context.baseRate > 0;
+    const concept = this.getConcept(context.conceptId);
+    return !!concept && !hasConcept(context.student, context.conceptId) && context.baseRate > 0
+      && (context.modeMultiplier ?? 1) > 0
+      && context.lessonProgress >= (concept.conditions?.minimumUnderstanding ?? 0)
+      && (concept.conditions?.requiredConceptIds ?? []).every(id => hasConcept(context.student, id));
   }
   computeDiscoveryChance(context: DiscoveryContext): number {
     if (!this.isEligible(context)) return 0;
@@ -42,13 +46,13 @@ export class Concepts {
       * (1 + clamp(student.personality?.persistent ?? 0) * 0.1)
       * (1 + clamp((context.teacher?.pedagogy ?? 0) / 100) * 0.1 + clamp(context.teacherModifier ?? 0))
       * this.learningMultiplier(student, this.getConcept(conceptId)!.tags);
-    return clamp(rate + clamp(student.concepts?.progress[conceptId] ?? 0));
+    return clamp((rate + clamp(student.concepts?.progress[conceptId] ?? 0)) * (context.modeMultiplier ?? 1));
   }
   attemptDiscoveries(context: Omit<DiscoveryContext, 'conceptId' | 'baseRate'>, xpGained: number, random: { next(): number }): GameEventPayload[] {
     const state = initializeConcepts(context.student), events: GameEventPayload[] = [];
     if (xpGained < conceptRules.significantXp) return events;
     const visited = new Set<string>();
-    for (const entry of context.lesson.conceptPool ?? []) {
+    for (const entry of context.lesson.conceptIds.map(conceptId => ({ conceptId, baseRate: context.lesson.conceptPool?.find(e => e.conceptId === conceptId)?.baseRate ?? this.getConcept(conceptId)?.baseRate ?? 0 }))) {
       const attempt = { ...context, ...entry };
       if (visited.has(entry.conceptId) || !this.isEligible(attempt)) continue;
       visited.add(entry.conceptId);

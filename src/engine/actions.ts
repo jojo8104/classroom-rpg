@@ -247,7 +247,7 @@ export function resolveActionRound(
       const effectiveLesson = { ...lesson, complexity: Math.max(0, lesson.complexity - effectBonus(state, 'complexityReduction')) };
       const understandingBefore = state.lessonUnderstanding;
       const resolvedEffects = new Set<string>();
-      const modifiers: AttackModifiers = {};
+      const modifiers: AttackModifiers = { learningMultiplier: reactionSetup?.learningMultiplier?.(student) ?? 1 };
       const turn = resolveWorkTurn({ social: !!social, learningRules: reactionSetup?.learningRules, student, state, lesson: effectiveLesson, rules: turnRules, random, events, changeConcentration, modifiers });
       for (const window of turn) {
         events.push({ type: 'REACTION_WINDOW_OPENED', studentId: student.id, window, extra: action.depth > 0 });

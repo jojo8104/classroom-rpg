@@ -60,6 +60,7 @@ export function validateScenario(scenario: PrototypeScenario): string[] {
       if (student.seatId) occupiedSeats.add(student.seatId);
     }
     if (student.present !== undefined && typeof student.present !== 'boolean') errors.push('Présence invalide.');
+    if (student.lessonMastery) for (const value of Object.values(student.lessonMastery)) checkStat(value, 'Maîtrise de leçon');
     if (student.knowledge) for (const value of Object.values(student.knowledge)) checkStat(value, 'Connaissance');
     if (student.seatPreferences && (!Array.isArray(student.seatPreferences.likes) || !Array.isArray(student.seatPreferences.dislikes) ||
         [...student.seatPreferences.likes, ...student.seatPreferences.dislikes].some(t => typeof t !== 'string'))) errors.push('Préférences invalides.');
